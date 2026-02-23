@@ -39,7 +39,7 @@ Follow these steps to simulate message loss:
     ```
 1. Start the cluster:
     ```bash
-    docker composue up -d
+    docker compose up -d
     ```
    _Wait until all applications are healthy._
 1. Start `ClickStream-Producer` by running the corresponding run configuration in IntelliJ.
@@ -99,9 +99,9 @@ but the message will never appear in the topic.
     - But this causes **higher latency**, must wait for replication.
   - `retries > 0` means the producer will resend the message when the leader is not available.
     - With `retries=5` the producer will resend the message up to five times.
-      - This might cause duplicate messages in the topic, 
-      - but improves fault tolerance if the leader is not available and has not acknowledged the message yet.
-    - Additionally set `enable.idempotence=true` to avoid duplicate messages.
+      - This **might cause duplicate messages** in the topic, 
+      - but **improves fault tolerance** if the leader is not available and has not acknowledged the message yet.
+    - Additionally set `enable.idempotence=true` to **avoid duplicate messages**.
 
 ## Cleanup
 
