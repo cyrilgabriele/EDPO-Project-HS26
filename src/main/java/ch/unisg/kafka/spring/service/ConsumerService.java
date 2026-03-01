@@ -1,6 +1,6 @@
 package ch.unisg.kafka.spring.service;
 
-import ch.unisg.kafka.spring.model.SuperHero;
+import ch.unisg.kafka.spring.model.MarketRollingWindowEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -17,11 +17,9 @@ public class ConsumerService {
     public void consumeMessage(String message) {
         logger.info("**** -> Consumed message -> {}", message);
     }
-
-
-    @KafkaListener(topics = {"${spring.kafka.superhero-topic}"}, containerFactory = "kafkaListenerJsonFactory", groupId = "group_id")
-    public void consumeSuperHero(SuperHero superHero) {
-        logger.info("**** -> Consumed Super Hero :: {}", superHero);
+    @KafkaListener(topics = "${app.kafka.market-rolling-topic}", containerFactory = "kafkaListenerMarketRollingFactory", groupId = "${app.kafka.market-rolling-group-id:market-rolling}")
+    public void consumeMarketRollingEvent(MarketRollingWindowEvent event) {
+        logger.info("**** -> Consumed rolling delta for {} with close price {}", event.symbol(), event.ticker().closePrice());
     }
 
 }

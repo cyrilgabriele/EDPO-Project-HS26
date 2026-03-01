@@ -1,6 +1,6 @@
 package ch.unisg.kafka.spring.config;
 
-import ch.unisg.kafka.spring.model.SuperHero;
+import ch.unisg.kafka.spring.model.MarketRollingWindowEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
@@ -13,7 +13,6 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.listener.KafkaListenerErrorHandler;
-import org.springframework.kafka.support.converter.StringJsonMessageConverter;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 
 import java.util.HashMap;
@@ -29,15 +28,12 @@ public class KafkaConsumerConfig {
     private String bootstrapServers;
 
     @Value("${spring.kafka.consumer.group-id: group_id}")
-    private String groupId;
+    private String defaultGroupId;
 
 
-    // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    // Json Consumer
-    // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     @Bean
-    public ConsumerFactory<String, SuperHero> consumerFactory() {
-       Map<String, Object> config = new HashMap<>();
+    public ConsumerFactory<String, MarketRollingWindowEvent> marketRollingConsumerFactory(@Value("${app.kafka.market-rolling-group-id:market-rolling}") String groupId) {
+        Map<String, Object> config = new HashMap<>();
 
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
@@ -46,15 +42,16 @@ public class KafkaConsumerConfig {
         config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
 
-        return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), new JsonDeserializer<>(SuperHero.class));
+        JsonDeserializer<MarketRollingWindowEvent> deserializer = new JsonDeserializer<>(MarketRollingWindowEvent.class);
+        deserializer.addTrustedPackages("*");
+        return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
     }
 
     @Bean
-    public <T> ConcurrentKafkaListenerContainerFactory<?, ?> kafkaListenerJsonFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, SuperHero> factory = new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(consumerFactory());
-        factory.setRecordMessageConverter(new StringJsonMessageConverter());
-        factory.setBatchListener(true);
+    public ConcurrentKafkaListenerContainerFactory<String, MarketRollingWindowEvent> kafkaListenerMarketRollingFactory(@Value("${app.kafka.market-rolling-group-id:market-rolling}") String groupId) {
+        ConcurrentKafkaListenerContainerFactory<String, MarketRollingWindowEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(marketRollingConsumerFactory(groupId));
+        factory.setBatchListener(false);
         return factory;
     }
 
@@ -67,7 +64,7 @@ public class KafkaConsumerConfig {
         Map<String, Object> config = new HashMap<>();
 
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
+        config.put(ConsumerConfig.GROUP_ID_CONFIG, defaultGroupId);
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);

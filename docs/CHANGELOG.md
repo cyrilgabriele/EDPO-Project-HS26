@@ -42,3 +42,15 @@ Track what was changed, why it was changed, and any important notes.
 
 #### Remarks
 - Future improvement: consider adding backoff jitter and DLQ publishing for malformed payloads.
+
+### [2026-03-01] - Cyril Gabriele
+
+#### What
+- Removed the legacy SuperHero model, controllers, producer injections, and Kafka consumer wiring so the project focuses entirely on the Binance rolling window events.
+- Simplified producer/consumer beans to only support string messages and the `MarketRollingWindowEvent` payload, updating `application.yml` with the remaining properties.
+
+#### Why
+- The SuperHero examples were placeholders; keeping them created confusion and unused wiring once the real ingest path existed.
+
+#### Remarks
+- none
