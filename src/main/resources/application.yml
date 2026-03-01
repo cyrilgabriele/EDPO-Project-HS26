@@ -11,11 +11,11 @@ spring:
       bootstrap-servers: localhost:9092
 
     topic: message-topic
-    superhero-topic: superhero-topic
 
 app:
   kafka:
     market-rolling-topic: market.rolling.1h
+    market-rolling-group-id: market-rolling
   binance:
     ws-base-url: wss://stream.binance.com:9443/ws
     stream-name: '!ticker_1h@arr'
