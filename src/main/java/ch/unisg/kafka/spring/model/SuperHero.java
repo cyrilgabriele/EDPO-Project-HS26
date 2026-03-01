@@ -1,4 +1,4 @@
-package main.java.ch.unisg.kafka.spring.model;
+package ch.unisg.kafka.spring.model;
 
 
 import java.io.Serializable;
