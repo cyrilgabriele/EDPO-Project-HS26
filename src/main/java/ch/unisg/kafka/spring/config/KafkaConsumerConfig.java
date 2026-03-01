@@ -1,4 +1,4 @@
-package main.java.ch.unisg.kafka.spring.config;
+package ch.unisg.kafka.spring.config;
 
 import ch.unisg.kafka.spring.model.SuperHero;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
