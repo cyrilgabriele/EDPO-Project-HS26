@@ -1,0 +1,36 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: portfolio-service
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/cryptoflow}
+    username: ${SPRING_DATASOURCE_USERNAME:cryptoflow}
+    password: ${SPRING_DATASOURCE_PASSWORD:cryptoflow}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: portfolio-service-group
+      auto-offset-reset: earliest
+
+# Kafka topic names (must match market-data-service)
+crypto:
+  kafka:
+    topic:
+      price-raw: crypto.price.raw
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
