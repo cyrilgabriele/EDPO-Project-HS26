@@ -1,11 +1,14 @@
 package ch.unisg.cryptoflow.marketdata.adapter.out.kafka;
 
 import ch.unisg.cryptoflow.events.CryptoPriceUpdatedEvent;
+import ch.unisg.cryptoflow.marketdata.application.EventLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
+
+import java.time.Instant;
 
 /**
  * Kafka producer adapter – publishes {@link CryptoPriceUpdatedEvent} messages
@@ -22,13 +25,16 @@ public class CryptoPriceKafkaProducer {
 
     private final KafkaTemplate<String, CryptoPriceUpdatedEvent> kafkaTemplate;
     private final String topic;
+    private final EventLog eventLog;
 
     @SuppressWarnings("unchecked")
     public CryptoPriceKafkaProducer(
             KafkaTemplate<String, ?> kafkaTemplate,
-            @Value("${crypto.kafka.topic.price-raw}") String topic) {
+            @Value("${crypto.kafka.topic.price-raw}") String topic,
+            EventLog eventLog) {
         this.kafkaTemplate = (KafkaTemplate<String, CryptoPriceUpdatedEvent>) kafkaTemplate;
         this.topic = topic;
+        this.eventLog = eventLog;
     }
 
     public void publish(CryptoPriceUpdatedEvent event) {
@@ -37,10 +43,19 @@ public class CryptoPriceKafkaProducer {
                     if (ex != null) {
                         log.error("Failed to publish price event for symbol {}", event.symbol(), ex);
                     } else {
+                        int partition = result.getRecordMetadata().partition();
+                        long offset = result.getRecordMetadata().offset();
                         log.debug("Published price event for {} → partition={} offset={}",
+                                event.symbol(), partition, offset);
+                        eventLog.record(new EventLog.Entry(
+                                event.eventId(),
                                 event.symbol(),
-                                result.getRecordMetadata().partition(),
-                                result.getRecordMetadata().offset());
+                                event.price(),
+                                event.timestamp(),
+                                Instant.now(),
+                                partition,
+                                offset
+                        ));
                     }
                 });
     }
