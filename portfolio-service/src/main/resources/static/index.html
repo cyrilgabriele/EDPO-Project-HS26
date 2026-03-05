@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>portfolio-service · CryptoFlow</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      line-height: 1.6;
+    }
+
+    header {
+      background: #1a1f2e;
+      border-bottom: 2px solid #a855f7;
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+    }
+    header h1 { font-size: 1.4rem; color: #c084fc; font-weight: 700; }
+    header .badge {
+      font-size: 0.75rem;
+      background: #2e1a47;
+      color: #e9d5ff;
+      border: 1px solid #a855f7;
+      border-radius: 999px;
+      padding: 0.15rem 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 2rem; display: grid; gap: 2rem; }
+
+    section {
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+    }
+    section h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #c084fc;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #2d3748;
+    }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+
+    pre.diagram {
+      font-family: 'Courier New', monospace;
+      font-size: 0.8rem;
+      color: #a0aec0;
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 0.5rem;
+      padding: 1.25rem;
+      line-height: 1.5;
+      overflow-x: auto;
+    }
+
+    .pattern-desc p { color: #cbd5e1; font-size: 0.9rem; margin-bottom: 0.75rem; }
+    .pattern-desc p:last-child { margin-bottom: 0; }
+
+    .key-point {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.6rem 0.75rem;
+      border-radius: 0.4rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+    }
+    .key-point.purple { background: #2e1a47; border-left: 3px solid #a855f7; color: #e9d5ff; }
+    .key-point.green  { background: #14291a; border-left: 3px solid #22c55e; color: #bbf7d0; }
+    .key-point.red    { background: #2d1515; border-left: 3px solid #ef4444; color: #fecaca; }
+    .key-point span.icon { flex-shrink: 0; }
+
+    .live-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #2d3748;
+    }
+    .live-header h2 { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
+    .live-meta { font-size: 0.8rem; color: #64748b; display: flex; align-items: center; gap: 1rem; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
+           display: inline-block; box-shadow: 0 0 6px #22c55e; }
+    .dot.red { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+
+    .price-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+    .price-card {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 0.5rem;
+      padding: 1rem;
+    }
+    .price-card .symbol { font-size: 0.85rem; color: #94a3b8; font-weight: 600; letter-spacing: 0.05em; }
+    .price-card .price-val {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #34d399;
+      font-family: monospace;
+      margin: 0.25rem 0 0;
+    }
+    .price-card .note { font-size: 0.7rem; color: #4a5568; margin-top: 0.25rem; }
+
+    .empty-cache { color: #4a5568; text-align: center; padding: 2rem; font-size: 0.9rem; }
+
+    .info-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+    .chip {
+      font-size: 0.75rem;
+      font-family: monospace;
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 0.375rem;
+      padding: 0.25rem 0.6rem;
+      color: #94a3b8;
+    }
+    .chip strong { color: #e2e8f0; }
+
+    .ecst-callout {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: #14291a;
+      border: 1px solid #22c55e;
+      border-radius: 0.5rem;
+      padding: 0.875rem 1rem;
+      color: #bbf7d0;
+      font-size: 0.875rem;
+    }
+    .ecst-callout .icon { font-size: 1.25rem; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>portfolio-service</h1>
+  <span class="badge">Event-Carried State Transfer (ECST)</span>
+  <span class="badge" style="margin-left:auto; font-size:0.7rem; background:#0f1117; border-color:#2d3748; color:#4a5568">
+    CryptoFlow · EDPO FS2026
+  </span>
+</header>
+
+<main>
+
+  <div class="two-col">
+
+    <section>
+      <h2>Architecture</h2>
+      <pre class="diagram">
+  Apache Kafka (topic: crypto.price.raw)
+           │
+           │  CryptoPriceUpdatedEvent
+           │  { eventId, symbol, price, timestamp }
+           ▼
+  ┌──────────────────────────────────────┐
+  │           portfolio-service          │
+  │                                      │
+  │  ┌───────────────────────────────┐   │
+  │  │      PriceEventConsumer       │   │
+  │  │   @KafkaListener              │   │
+  │  └──────────────┬────────────────┘   │
+  │                 │ updatePrice()      │
+  │  ┌──────────────▼────────────────┐   │
+  │  │       LocalPriceCache         │   │
+  │  │  ConcurrentHashMap            │   │
+  │  │  { BTCUSDT → 65000.00, … }    │   │
+  │  └──────────────┬────────────────┘   │
+  │                 │ getPrice()         │
+  │  ┌──────────────▼────────────────┐   │
+  │  │     PortfolioService          │   │
+  │  │  calculateTotalValue()        │   │
+  │  └───────────────────────────────┘   │
+  └──────────────────────────────────────┘
+           │
+    REST GET /portfolios/{userId}
+    REST GET /prices/{symbol}
+
+  ✗  NO synchronous call to market-data-service
+      </pre>
+    </section>
+
+    <section class="pattern-desc">
+      <h2>Event-Carried State Transfer</h2>
+      <p>
+        In the <strong>ECST</strong> pattern, each event carries enough data for the
+        consumer to update its own local state — no callback to the producer is needed.
+      </p>
+      <p>
+        This service receives <code>CryptoPriceUpdatedEvent</code> messages from Kafka
+        and writes the price directly into its <code>LocalPriceCache</code>. REST
+        queries are answered entirely from that local replica.
+      </p>
+
+      <div class="key-point purple">
+        <span class="icon">&#9654;</span>
+        <span><strong>Autonomy</strong>: can serve price and portfolio REST requests even when <code>market-data-service</code> is temporarily offline.</span>
+      </div>
+      <div class="key-point green">
+        <span class="icon">&#10003;</span>
+        <span><strong>No synchronous coupling</strong>: zero HTTP calls from this service to the producer at query time.</span>
+      </div>
+      <div class="key-point red">
+        <span class="icon">&#9888;</span>
+        <span><strong>Eventual consistency</strong>: cached prices lag by up to one poll interval (default: 10 s).</span>
+      </div>
+
+      <div id="info-chips" class="info-chips">
+        <span class="chip">topic: <strong>loading…</strong></span>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Live Price Cache -->
+  <section>
+    <div class="live-header">
+      <h2>Live Local Price Cache</h2>
+      <div class="live-meta">
+        <span><span id="dot" class="dot red"></span>&nbsp;<span id="status-text">connecting…</span></span>
+        <span>Updated: <span id="last-updated">–</span></span>
+        <span>Interval: 5 s</span>
+      </div>
+    </div>
+
+    <div class="ecst-callout" style="margin-bottom: 1rem;">
+      <span class="icon">&#128274;</span>
+      <span>
+        These prices are served <strong>entirely from this service's in-memory cache</strong>.
+        Open the Network tab to confirm: no request to port 8081 is ever made.
+      </span>
+    </div>
+
+    <div id="price-grid" class="price-grid">
+      <div class="empty-cache">Waiting for first events from Kafka…</div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  const REFRESH_MS = 5000;
+
+  function fmt(price) {
+    const n = Number(price);
+    if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (n >= 1)    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    return n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 });
+  }
+
+  async function refresh() {
+    try {
+      const res = await fetch('/api/dashboard');
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+
+      // Chips
+      const chips = document.getElementById('info-chips');
+      chips.innerHTML =
+        `<span class="chip">topic: <strong>${data.topic}</strong></span>` +
+        `<span class="chip">group: <strong>${data.groupId}</strong></span>` +
+        `<span class="chip">cached symbols: <strong>${data.cacheSize}</strong></span>`;
+
+      // Status
+      document.getElementById('dot').className = 'dot';
+      document.getElementById('status-text').textContent = 'live';
+      document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('en-GB');
+
+      // Price cards
+      const grid = document.getElementById('price-grid');
+      const prices = data.prices || {};
+      const entries = Object.entries(prices);
+      if (entries.length === 0) {
+        grid.innerHTML = '<div class="empty-cache">No prices cached yet — Kafka consumer is warming up…</div>';
+        return;
+      }
+      grid.innerHTML = entries
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([symbol, price]) => `
+          <div class="price-card">
+            <div class="symbol">${symbol}</div>
+            <div class="price-val">$${fmt(price)}</div>
+            <div class="note">served from LocalPriceCache</div>
+          </div>
+        `).join('');
+    } catch (err) {
+      document.getElementById('dot').className = 'dot red';
+      document.getElementById('status-text').textContent = 'offline';
+    }
+  }
+
+  refresh();
+  setInterval(refresh, REFRESH_MS);
+</script>
+
+</body>
+</html>

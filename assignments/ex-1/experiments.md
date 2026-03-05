@@ -3,6 +3,8 @@
 > The full runnable setups live in the subdirectories referenced below. 
 > This file consolidates the insights that are documented there so the hand-in captures every experiment outcome in one place.
 
+Project Link: [https://github.com/cyrilgabriele/EDPO-Project-FS26/tree/main/assignments/ex-1](https://github.com/cyrilgabriele/EDPO-Project-FS26/tree/main/assignments/ex-1)
+
 ## Producer Experiments (`./producer-experiments`)
 ### Infrastructure and Code
 - Based on the lab02Part3-ManyBrokers stack, trimmed to `controller`, `kafka1`, and `kafka2` as defined in `producer-experiments/docker-compose.yml`.
@@ -47,9 +49,13 @@
 3. Kill the consumer before it auto-commits (Ctrl+C within five seconds), then restart it unchanged.
 
 **Observed behavior:**
+
 ![Experiment A shutdown](./consumer-experiments/screenshots/experimentA_img1.png)
+
 - Shutdown while printing events `45–48` proves offsets were never committed.
+
 ![Experiment A replay](./consumer-experiments/screenshots/experimentA_img2.png)
+
 - Restart log shows “Resetting offset … offset=0” and the consumer replays from `eventID=0` in order.
 
 **Insights:**
@@ -64,9 +70,13 @@
 2. Start the consumer, observe no records being printed initially, then produce more events.
 
 **Observed behavior:**
+
 ![Experiment B reset to tail](./consumer-experiments/screenshots/experimentB_img1.png)
+
 - Client joins `grp2` with no offsets and immediately resets to offset 90.
+
 ![Experiment B skipped history](./consumer-experiments/screenshots/experimentB_img2.png)
+
 - Producer emits IDs `0..6` before the consumer prints anything; those remain unread by `grp2`.
 
 **Insights:**

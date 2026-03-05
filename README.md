@@ -18,11 +18,11 @@ CryptoFlow is a crypto portfolio simulation platform built to demonstrate event-
   Binance REST API
         │  GET /api/v3/ticker/price
         ▼
-┌─────────────────────┐         Topic: crypto.price.raw          ┌──────────────────────┐
+┌──────────────────────┐         Topic: crypto.price.raw          ┌──────────────────────┐
 │  market-data-service │ ────────────────────────────────────────▶│  portfolio-service   │
 │  (Producer)          │   CryptoPriceUpdatedEvent per symbol     │  (Consumer + REST)   │
 │  port 8081           │                                          │  port 8082           │
-└─────────────────────┘                                          └──────────────────────┘
+└──────────────────────┘                                          └──────────────────────┘
 ```
 
 ---
