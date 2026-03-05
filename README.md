@@ -262,7 +262,7 @@ EDPO-Project-HS26/
 | **Event Notification** | `market-data-service` emits price events with no knowledge of who consumes them. Adding a new consumer requires zero changes to the producer. |
 | **Event-carried State Transfer (ECST)** | `portfolio-service` maintains a local price replica from Kafka events. It never calls `market-data-service` directly, making it resilient to producer downtime. |
 
-See [`PROJECT_ARCHITECTURE.md`](./PROJECT_ARCHITECTURE.md) for the full design document.
+See [`PROJECT_ARCHITECTURE.md`](docs/PROJECT_ARCHITECTURE.md) for the full design document.
 
 ---
 
