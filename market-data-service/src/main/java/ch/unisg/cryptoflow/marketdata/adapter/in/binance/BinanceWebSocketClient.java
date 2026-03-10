@@ -7,8 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -41,9 +40,9 @@ import java.util.stream.Collectors;
  * the producer emits events with no knowledge of who consumes them.
  */
 @Component
+@Slf4j
 public class BinanceWebSocketClient extends TextWebSocketHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(BinanceWebSocketClient.class);
     private static final long INITIAL_BACKOFF_MS = 1_000;
     private static final long MAX_BACKOFF_MS = 60_000;
 

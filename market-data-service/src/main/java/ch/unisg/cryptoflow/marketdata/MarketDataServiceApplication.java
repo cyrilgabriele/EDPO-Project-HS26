@@ -7,6 +7,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class MarketDataServiceApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(MarketDataServiceApplication.class, args);
+        SpringApplication app = new SpringApplication(MarketDataServiceApplication.class);
+        app.setBanner((environment, sourceClass, out) -> out.println(Banner.TEXT));
+        app.run(args);
     }
 }

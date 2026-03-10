@@ -2,8 +2,7 @@ package ch.unisg.cryptoflow.marketdata.adapter.out.kafka;
 
 import ch.unisg.cryptoflow.events.CryptoPriceUpdatedEvent;
 import ch.unisg.cryptoflow.marketdata.application.EventLog;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -25,9 +24,8 @@ import java.util.stream.IntStream;
  * per-symbol ordering.
  */
 @Component
+@Slf4j
 public class CryptoPriceKafkaProducer {
-
-    private static final Logger log = LoggerFactory.getLogger(CryptoPriceKafkaProducer.class);
 
     private final KafkaTemplate<String, CryptoPriceUpdatedEvent> kafkaTemplate;
     private final String topic;

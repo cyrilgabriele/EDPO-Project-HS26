@@ -2,8 +2,7 @@ package ch.unisg.cryptoflow.portfolio.adapter.in.kafka;
 
 import ch.unisg.cryptoflow.events.CryptoPriceUpdatedEvent;
 import ch.unisg.cryptoflow.portfolio.domain.LocalPriceCache;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -16,9 +15,8 @@ import org.springframework.stereotype.Component;
  * without making any synchronous call to {@code market-data-service}.
  */
 @Component
+@Slf4j
 public class PriceEventConsumer {
-
-    private static final Logger log = LoggerFactory.getLogger(PriceEventConsumer.class);
 
     private final LocalPriceCache localPriceCache;
 

@@ -7,6 +7,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class PortfolioServiceApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(PortfolioServiceApplication.class, args);
+        SpringApplication app = new SpringApplication(PortfolioServiceApplication.class);
+        app.setBanner((environment, sourceClass, out) -> out.println(Banner.TEXT));
+        app.run(args);
     }
 }
