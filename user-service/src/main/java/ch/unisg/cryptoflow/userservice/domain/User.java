@@ -8,11 +8,12 @@ public class User {
     private String username;
     @Getter
     private String password;
+    @Getter
+    private String userId;
 
-    public User(String username, String password) {
-        // this.id = id;
+    public User(String username, String password, String userId) {
+        this.userId = userId;
         this.username = username;
         this.password = password;
     }
-
 }
