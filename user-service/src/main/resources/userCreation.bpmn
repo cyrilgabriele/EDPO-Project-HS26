@@ -4,7 +4,7 @@
         <bpmn:startEvent id="StartEvent_1">
             <bpmn:outgoing>Flow_start_prepare</bpmn:outgoing>
         </bpmn:startEvent>
-        <bpmn:userTask id="Activity_PrepareForm" name="Prepare user">
+        <bpmn:userTask id="Activity_PrepareForm" name="Enter User Credentials">
             <bpmn:extensionElements>
                 <zeebe:userTask />
                 <zeebe:formDefinition formId="UserCreation" />
@@ -80,6 +80,7 @@
             </bpmndi:BPMNShape>
             <bpmndi:BPMNShape id="PrepareForm_shape" bpmnElement="Activity_PrepareForm">
                 <dc:Bounds x="240" y="98" width="120" height="80" />
+                <bpmndi:BPMNLabel />
             </bpmndi:BPMNShape>
             <bpmndi:BPMNShape id="GenerateLink_shape" bpmnElement="Activity_GenerateLink">
                 <dc:Bounds x="400" y="98" width="150" height="80" />
