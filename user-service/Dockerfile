@@ -1,39 +1,39 @@
 # ──────────────────────────────────────────────────
-# Stage 1 – Build (Maven + JDK 21)
+# Stage 1 – Build (Maven + Temurin JDK 21)
 # ──────────────────────────────────────────────────
 FROM maven:3.9-eclipse-temurin-21-alpine AS build
 
 WORKDIR /workspace
 
-# Copy parent and module POMs first so dependency layer is cached separately
+# Copy parent + module POMs for dependency layer caching
 COPY pom.xml .
 COPY shared-events/pom.xml shared-events/
 COPY market-data-service/pom.xml market-data-service/
 COPY portfolio-service/pom.xml portfolio-service/
 COPY user-service/pom.xml user-service/
 
-# Pre-download dependencies (cached as a layer)
-RUN mvn dependency:go-offline -pl market-data-service,shared-events -am -q
+# Pre-download dependencies for faster rebuilds
+RUN mvn dependency:go-offline -pl user-service,shared-events -am -q
 
-# Copy source code
+# Copy the actual sources
 COPY shared-events/src shared-events/src
-COPY market-data-service/src market-data-service/src
+COPY user-service/src user-service/src
 
-# Build the fat JAR
-RUN mvn package -pl market-data-service -am -DskipTests -q
+# Build the executable jar without running tests
+RUN mvn package -pl user-service -am -DskipTests -q
 
 # ──────────────────────────────────────────────────
-# Stage 2 – Runtime (JRE 21 slim)
+# Stage 2 – Runtime (Temurin JRE 21)
 # ──────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-COPY --from=build /workspace/market-data-service/target/*.jar app.jar
+COPY --from=build /workspace/user-service/target/*.jar app.jar
 
-EXPOSE 8081
+EXPOSE 8083
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-    CMD wget -qO- http://localhost:8081/actuator/health 2>/dev/null | grep -q '"status":"UP"' || exit 1
+    CMD wget -qO- http://localhost:8083/actuator/health 2>/dev/null | grep -q '"status":"UP"' || exit 1
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
