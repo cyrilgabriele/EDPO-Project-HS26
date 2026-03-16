@@ -10,6 +10,7 @@ COPY pom.xml .
 COPY shared-events/pom.xml shared-events/
 COPY market-data-service/pom.xml market-data-service/
 COPY portfolio-service/pom.xml portfolio-service/
+COPY transaction-service/pom.xml transaction-service/
 
 # Pre-download dependencies (cached as a layer)
 RUN mvn dependency:go-offline -pl market-data-service,shared-events -am -q
