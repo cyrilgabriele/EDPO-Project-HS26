@@ -4,7 +4,7 @@ server:
 logging:
   level:
     root: WARN
-    ch.unisg.cryptoflow.transaction.adapter: DEBUG
+    ch.unisg.cryptoflow.transaction.adapter.in.camunda: DEBUG
     ch.unisg.cryptoflow.transaction.application: DEBUG
 
 spring:

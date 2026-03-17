@@ -150,6 +150,27 @@ services:
       CAMUNDA_CLUSTER_ID_TRANSACTION_SERVICE: ${CAMUNDA_CLUSTER_ID_TRANSACTION_SERVICE}
       CAMUNDA_REGION_TRANSACTION_SERVICE: ${CAMUNDA_REGION_TRANSACTION_SERVICE:-lhr-1}
 
+  # ── User Service ─────────────────────────────────────────────────────────────
+  user-service:
+    build:
+      context: ..
+      dockerfile: user-service/Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cryptoflow
+      SPRING_DATASOURCE_USERNAME: cryptoflow
+      SPRING_DATASOURCE_PASSWORD: cryptoflow
+      CAMUNDA_CLIENT_ID_USER_SERVICE: ${CAMUNDA_CLIENT_ID_USER_SERVICE}
+      CAMUNDA_CLIENT_SECRET_USER_SERVICE: ${CAMUNDA_CLIENT_SECRET_USER_SERVICE}
+      CAMUNDA_CLUSTER_ID_USER_SERVICE: ${CAMUNDA_CLUSTER_ID_USER_SERVICE}
+      CAMUNDA_REGION_USER_SERVICE: ${CAMUNDA_REGION_USER_SERVICE:-lhr-1}
+
 volumes:
   postgres-data:
   pgadmin-data:
