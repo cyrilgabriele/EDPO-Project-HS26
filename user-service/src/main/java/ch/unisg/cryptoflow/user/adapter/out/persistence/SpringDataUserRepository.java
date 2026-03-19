@@ -1,4 +1,4 @@
-package ch.unisg.cryptoflow.userservice.adapter.out.persistence;
+package ch.unisg.cryptoflow.user.adapter.out.persistence;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

@@ -1,4 +1,4 @@
-package ch.unisg.cryptoflow.userservice.application.port.in;
+package ch.unisg.cryptoflow.user.application.port.in;
 
 import java.util.Objects;
 

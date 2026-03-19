@@ -1,7 +1,7 @@
-package ch.unisg.cryptoflow.userservice.adapter.out.persistence;
+package ch.unisg.cryptoflow.user.adapter.out.persistence;
 
-import ch.unisg.cryptoflow.userservice.application.port.out.SaveUserPort;
-import ch.unisg.cryptoflow.userservice.domain.User;
+import ch.unisg.cryptoflow.user.application.port.out.SaveUserPort;
+import ch.unisg.cryptoflow.user.domain.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

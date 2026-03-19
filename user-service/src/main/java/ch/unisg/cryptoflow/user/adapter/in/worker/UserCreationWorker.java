@@ -1,9 +1,9 @@
-package ch.unisg.cryptoflow.userservice.adapter.in.worker;
+package ch.unisg.cryptoflow.user.adapter.in.worker;
 
-import ch.unisg.cryptoflow.userservice.application.port.in.CreateUserCommand;
-import ch.unisg.cryptoflow.userservice.application.port.in.CreateUserUseCase;
-import ch.unisg.cryptoflow.userservice.domain.User;
-import ch.unisg.cryptoflow.userservice.payload.UserCreationContext;
+import ch.unisg.cryptoflow.user.application.port.in.CreateUserCommand;
+import ch.unisg.cryptoflow.user.application.port.in.CreateUserUseCase;
+import ch.unisg.cryptoflow.user.domain.User;
+import ch.unisg.cryptoflow.user.payload.UserCreationContext;
 import io.camunda.zeebe.client.api.response.ActivatedJob;
 import io.camunda.zeebe.client.api.worker.JobClient;
 import io.camunda.zeebe.spring.client.annotation.JobWorker;

@@ -1,4 +1,4 @@
-package ch.unisg.cryptoflow.userservice.payload;
+package ch.unisg.cryptoflow.user.payload;
 
 import java.util.Map;
 

@@ -33,4 +33,4 @@ camunda:
 
 user:
   confirmation:
-    base-url: ${USER_CONFIRMATION_BASE_URL:http://localhost:8083}
+    base-url: ${USER_CONFIRMATION_BASE_URL:http://localhost:8084}

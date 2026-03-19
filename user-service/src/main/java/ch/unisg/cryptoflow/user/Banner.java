@@ -1,4 +1,4 @@
-package ch.unisg.cryptoflow.userservice;
+package ch.unisg.cryptoflow.user;
 
 import com.github.lalyos.jfiglet.FigletFont;
 import org.springframework.boot.SpringBootVersion;

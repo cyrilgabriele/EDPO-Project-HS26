@@ -1,4 +1,4 @@
-package ch.unisg.cryptoflow.userservice;
+package ch.unisg.cryptoflow.user;
 
 import io.camunda.zeebe.spring.client.annotation.Deployment;
 import org.springframework.boot.SpringApplication;

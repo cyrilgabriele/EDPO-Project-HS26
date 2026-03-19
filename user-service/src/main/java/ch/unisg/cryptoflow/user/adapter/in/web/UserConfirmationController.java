@@ -1,4 +1,4 @@
-package ch.unisg.cryptoflow.userservice.adapter.in.web;
+package ch.unisg.cryptoflow.user.adapter.in.web;
 
 import io.camunda.zeebe.client.ZeebeClient;
 import lombok.RequiredArgsConstructor;

@@ -1,9 +1,9 @@
-package ch.unisg.cryptoflow.userservice.application.service;
+package ch.unisg.cryptoflow.user.application.service;
 
-import ch.unisg.cryptoflow.userservice.application.port.in.CreateUserCommand;
-import ch.unisg.cryptoflow.userservice.application.port.in.CreateUserUseCase;
-import ch.unisg.cryptoflow.userservice.application.port.out.SaveUserPort;
-import ch.unisg.cryptoflow.userservice.domain.User;
+import ch.unisg.cryptoflow.user.application.port.in.CreateUserCommand;
+import ch.unisg.cryptoflow.user.application.port.in.CreateUserUseCase;
+import ch.unisg.cryptoflow.user.application.port.out.SaveUserPort;
+import ch.unisg.cryptoflow.user.domain.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

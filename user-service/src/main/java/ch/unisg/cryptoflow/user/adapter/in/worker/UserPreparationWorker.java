@@ -1,6 +1,6 @@
-package ch.unisg.cryptoflow.userservice.adapter.in.worker;
+package ch.unisg.cryptoflow.user.adapter.in.worker;
 
-import ch.unisg.cryptoflow.userservice.payload.UserCreationContext;
+import ch.unisg.cryptoflow.user.payload.UserCreationContext;
 import io.camunda.zeebe.client.api.response.ActivatedJob;
 import io.camunda.zeebe.client.api.worker.JobClient;
 import io.camunda.zeebe.spring.client.annotation.JobWorker;
@@ -16,7 +16,7 @@ import java.util.UUID;
 @Component
 public class UserPreparationWorker {
 
-    @Value("${user.confirmation.base-url:http://localhost:8083}")
+    @Value("${user.confirmation.base-url:http://localhost:8084}")
     private String confirmationBaseUrl;
 
     @JobWorker(type = "userPreparationWorker")

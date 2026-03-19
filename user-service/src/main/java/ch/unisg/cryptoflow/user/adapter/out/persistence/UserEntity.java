@@ -1,6 +1,6 @@
-package ch.unisg.cryptoflow.userservice.adapter.out.persistence;
+package ch.unisg.cryptoflow.user.adapter.out.persistence;
 
-import ch.unisg.cryptoflow.userservice.domain.User;
+import ch.unisg.cryptoflow.user.domain.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
