@@ -23,6 +23,15 @@ spring:
       group-id: portfolio-service-group
       auto-offset-reset: earliest
 
+camunda:
+  client:
+    mode: saas
+    auth:
+      client-id: ${CAMUNDA_CLIENT_ID_PORTFOLIO_SERVICE}
+      client-secret: ${CAMUNDA_CLIENT_SECRET_PORTFOLIO_SERVICE}
+    cluster-id: ${CAMUNDA_CLUSTER_ID_PORTFOLIO_SERVICE}
+    region: ${CAMUNDA_REGION_PORTFOLIO_SERVICE}
+
 # Kafka topic names (must match market-data-service)
 crypto:
   kafka:
