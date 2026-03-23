@@ -5,7 +5,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-@Deployment(resources = "classpath:userCreation.bpmn")
+//@Deployment(resources = "classpath:userCreation.bpmn") // comment when developing in modeler
 public class UserServiceApplication {
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication(UserServiceApplication.class);
