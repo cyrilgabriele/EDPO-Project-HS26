@@ -25,7 +25,7 @@ Keeping the BPMN inside `user-service` creates several issues:
 Introduce `onboarding-service` as a dedicated orchestration service. It owns the BPMN process
 (`userOnboarding.bpmn`) and deploys it via the Camunda 8 Zeebe client. The user-facing form still
 triggers the process through Camunda Tasklist, but the BPMN now coordinates four workers:
-`userPreparationWorker` (user-service) runs before the confirmation wait, generating the `userId`,
+`prepareUserWorker` (user-service) runs before the confirmation wait, generating the `userId`,
 building the confirmation URL, and persisting a `user_confirmation_links` row as `PENDING` so that
 user-service keeps definitive saga state. Once the `UserConfirmed` message arrives, a Parallel
 Gateway fans out to `userCreationWorker` (user-service) and `portfolioCreationWorker`

@@ -15,18 +15,18 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-public class UserPreparationWorker {
+public class PrepareUserWorker {
 
     @Value("${user.confirmation.base-url:http://localhost:8084}")
     private String confirmationBaseUrl;
 
     private final ConfirmationLinkService confirmationLinkService;
 
-    public UserPreparationWorker(ConfirmationLinkService confirmationLinkService) {
+    public PrepareUserWorker(ConfirmationLinkService confirmationLinkService) {
         this.confirmationLinkService = confirmationLinkService;
     }
 
-    @JobWorker(type = "userPreparationWorker")
+    @JobWorker(type = "prepareUserWorker")
     public void prepareUser(JobClient client, ActivatedJob job) {
         UserCreationContext context = UserCreationContext.fromMap(job.getVariablesAsMap());
 
