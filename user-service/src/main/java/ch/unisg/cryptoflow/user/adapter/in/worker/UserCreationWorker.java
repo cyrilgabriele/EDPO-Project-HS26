@@ -34,19 +34,20 @@ public class UserCreationWorker {
         try {
             Object userIdVariable = variables.get("userId");
             if (userIdVariable == null) {
-                throw new IllegalStateException("UserId variable missing for user creation job " + job.getKey());
-            }
-            userId = userIdVariable.toString();
-            failIfCompensationTrigger(userCreationContext.userName());
-            CreateUserCommand command = new CreateUserCommand(userId, userCreationContext.userName(), userCreationContext.password(), userCreationContext.email());
-            UserCreationResult result = createUserUseCase.createUser(command);
-
-            if (result.created()) {
-                log.info("Persisted user {} with userId {} and email {}", result.user().username(), result.user().userId(), result.user().email());
+                log.error("UserId variable missing for user creation job {}", job.getKey());
             } else {
-                log.warn("Skipped user creation for {} because a user already exists", userId);
+                userId = userIdVariable.toString();
+                failIfCompensationTrigger(userCreationContext.userName());
+                CreateUserCommand command = new CreateUserCommand(userId, userCreationContext.userName(), userCreationContext.password(), userCreationContext.email());
+                UserCreationResult result = createUserUseCase.createUser(command);
+
+                if (result.created()) {
+                    log.info("Persisted user {} with userId {} and email {}", result.user().username(), result.user().userId(), result.user().email());
+                } else {
+                    log.warn("Skipped user creation for {} because a user already exists", userId);
+                }
+                userCreated = result.created();
             }
-            userCreated = result.created();
         } catch (IntentionalCompensationTriggerException ex) {
             log.warn("User creation intentionally aborted for {} to test compensation", fallbackUserId(variables, userId));
             userCreated = false;

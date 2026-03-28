@@ -17,9 +17,16 @@ public class UserCompensationProducer {
     @Value("${crypto.kafka.topic.user-compensation}")
     private String topic;
 
-    public void publishUserDeletion(String userId, String reason) {
-        UserCompensationRequestedEvent event = new UserCompensationRequestedEvent(userId, reason);
-        kafkaTemplate.send(topic, userId, event);
-        log.info("Published user compensation request for user {}", userId);
+    public void publishUserDeletion(String userId, String userName, String email, String reason) {
+        UserCompensationRequestedEvent event = new UserCompensationRequestedEvent(userId, userName, email, reason);
+        try {
+            kafkaTemplate.send(topic, userId, event).get();
+            log.info("Published user compensation request for user {}", userId);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while publishing user compensation", ex);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to publish user compensation for user " + userId, ex);
+        }
     }
 }

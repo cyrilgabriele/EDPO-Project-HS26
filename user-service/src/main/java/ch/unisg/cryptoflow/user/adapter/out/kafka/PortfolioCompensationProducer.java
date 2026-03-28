@@ -17,9 +17,16 @@ public class PortfolioCompensationProducer {
     @Value("${crypto.kafka.topic.portfolio-compensation}")
     private String topic;
 
-    public void publishPortfolioDeletion(String userId, String reason) {
-        PortfolioCompensationRequestedEvent event = new PortfolioCompensationRequestedEvent(userId, reason);
-        kafkaTemplate.send(topic, userId, event);
-        log.info("Published portfolio compensation request for user {}", userId);
+    public void publishPortfolioDeletion(String userId, String userName, Long portfolioId, String reason) {
+        PortfolioCompensationRequestedEvent event = new PortfolioCompensationRequestedEvent(userId, userName, portfolioId, reason);
+        try {
+            kafkaTemplate.send(topic, userId, event).get();
+            log.info("Published portfolio compensation request for user {} (portfolioId={})", userId, portfolioId);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while publishing portfolio compensation", ex);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to publish portfolio compensation for user " + userId, ex);
+        }
     }
 }

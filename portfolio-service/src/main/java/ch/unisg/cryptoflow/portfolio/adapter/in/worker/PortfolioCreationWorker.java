@@ -31,23 +31,19 @@ public class PortfolioCreationWorker {
 
         try {
             Object userIdValue = variables.get("userId");
-            if (userIdValue == null) {
-                throw new IllegalStateException("userId variable missing for portfolio creation job " + job.getKey());
-            }
-
             Object userNameValue = variables.get("userName");
-            if (userNameValue == null) {
-                throw new IllegalStateException("userName variable missing for portfolio creation job " + job.getKey());
+            if (userIdValue == null || userNameValue == null) {
+                log.error("Missing {} for portfolio creation job {}", userIdValue == null ? "userId" : "userName", job.getKey());
+            } else {
+                userId = userIdValue.toString();
+                userName = userNameValue.toString();
+
+                failIfCompensationTrigger(userName);
+                PortfolioCreationResult result = portfolioService.createPortfolioForUser(userId, userName);
+                portfolioCreated = result.created();
+                portfolioId = result.portfolioId();
+                log.info("Ensured portfolio {} for user {} (created={})", result.portfolioId(), userId, result.created());
             }
-
-            userId = userIdValue.toString();
-            userName = userNameValue.toString();
-
-            failIfCompensationTrigger(userName);
-            PortfolioCreationResult result = portfolioService.createPortfolioForUser(userId, userName);
-            portfolioCreated = result.created();
-            portfolioId = result.portfolioId();
-            log.info("Ensured portfolio {} for user {} (created={})", result.portfolioId(), userId, result.created());
         } catch (IntentionalCompensationTriggerException ex) {
             log.warn("Portfolio creation intentionally aborted for {} to test compensation", fallbackUserId(variables, userId));
             portfolioCreated = false;

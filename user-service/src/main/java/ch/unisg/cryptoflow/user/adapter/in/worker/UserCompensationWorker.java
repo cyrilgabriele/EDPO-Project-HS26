@@ -1,15 +1,15 @@
 package ch.unisg.cryptoflow.user.adapter.in.worker;
 
-import ch.unisg.cryptoflow.user.application.port.in.CompensateUserUseCase;
 import ch.unisg.cryptoflow.user.adapter.out.kafka.PortfolioCompensationProducer;
+import ch.unisg.cryptoflow.user.application.port.in.CompensateUserUseCase;
 import io.camunda.zeebe.client.api.response.ActivatedJob;
 import io.camunda.zeebe.client.api.worker.JobClient;
 import io.camunda.zeebe.spring.client.annotation.JobWorker;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
-import java.util.Map;
 
 @Slf4j
 @Component
@@ -22,45 +22,57 @@ public class UserCompensationWorker {
     @JobWorker(type = "userCompensationWorker")
     public void compensateUser(JobClient client, ActivatedJob job) {
         Map<String, Object> variables = job.getVariablesAsMap();
-        Object userIdValue = variables.get("userId");
-        if (userIdValue == null) {
-            throw new IllegalStateException("userId variable missing for user compensation job " + job.getKey());
-        }
-
-        String userId = userIdValue.toString();
-        Boolean userCreatedFlag = parseOptionalBoolean(variables.get("isUserCreated"));
-        Boolean portfolioCreatedFlag = parseOptionalBoolean(variables.get("isPortfolioCreated"));
+        String userId = requireString(variables, "userId");
+        String userName = asNullableString(variables.get("userName"));
+        String email = asNullableString(variables.get("e_mail"));
+        Long portfolioId = parseOptionalLong(variables.get("portfolioId"));
 
         boolean userDeleted = compensateUserUseCase.compensateUser(userId);
         if (userDeleted) {
             log.info("Compensated user {} after onboarding failure", userId);
-        } else if (!Boolean.FALSE.equals(userCreatedFlag)) {
-            log.warn("Tried to compensate user {} but no persisted user was found", userId);
         } else {
-            log.info("User creation for {} was reported as failed; no persisted user to delete", userId);
+            log.warn("Unable to delete user {} during compensation; record not found", userId);
         }
 
-        boolean shouldAttemptPortfolioDeletion = portfolioCreatedFlag == null || Boolean.TRUE.equals(portfolioCreatedFlag);
-        if (shouldAttemptPortfolioDeletion) {
-            portfolioCompensationProducer.publishPortfolioDeletion(
-                userId,
-                "User compensation task " + job.getKey() + " requested portfolio rollback"
-            );
-        } else {
-            log.info("Portfolio creation flagged as failed for {}; skipping portfolio compensation", userId);
-        }
+        portfolioCompensationProducer.publishPortfolioDeletion(
+            userId,
+            userName,
+            portfolioId,
+            "User compensation job %d requested portfolio rollback".formatted(job.getKey())
+        );
 
-        client.newCompleteCommand(job.getKey()).send().join();
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("isUserCreated", userDeleted ? Boolean.FALSE : Boolean.TRUE);
+        client.newCompleteCommand(job.getKey())
+            .variables(updates)
+            .send()
+            .join();
     }
 
-    private Boolean parseOptionalBoolean(Object value) {
+    private String requireString(Map<String, Object> variables, String key) {
+        Object value = variables.get(key);
+        if (value == null) {
+            throw new IllegalStateException(key + " variable missing for user compensation job");
+        }
+        return value.toString();
+    }
+
+    private Long parseOptionalLong(Object value) {
         if (value == null) {
             return null;
         }
-        if (value instanceof Boolean boolValue) {
-            return boolValue;
+        if (value instanceof Number number) {
+            return number.longValue();
         }
-        return Boolean.parseBoolean(value.toString());
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException ex) {
+            log.warn("Unable to parse portfolioId variable {} as long", value);
+            return null;
+        }
     }
 
+    private String asNullableString(Object value) {
+        return value != null ? value.toString() : null;
+    }
 }

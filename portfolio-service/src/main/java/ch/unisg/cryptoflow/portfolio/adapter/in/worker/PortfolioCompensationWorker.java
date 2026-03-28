@@ -5,91 +5,61 @@ import ch.unisg.cryptoflow.portfolio.application.PortfolioService;
 import io.camunda.zeebe.client.api.response.ActivatedJob;
 import io.camunda.zeebe.client.api.worker.JobClient;
 import io.camunda.zeebe.spring.client.annotation.JobWorker;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
-import java.time.Duration;
-import java.util.Map;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class PortfolioCompensationWorker {
 
-    private final PortfolioService portfolioService;
-    private final UserCompensationProducer userCompensationProducer;
-
     private static final Duration CREATION_WAIT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration CREATION_POLL_INTERVAL = Duration.ofMillis(200);
+
+    private final PortfolioService portfolioService;
+    private final UserCompensationProducer userCompensationProducer;
 
     @JobWorker(type = "portfolioCompensationWorker")
     public void compensatePortfolio(JobClient client, ActivatedJob job) {
         Map<String, Object> variables = job.getVariablesAsMap();
-        Object userIdValue = variables.get("userId");
-        if (userIdValue == null) {
-            throw new IllegalStateException("userId variable missing for portfolio compensation job " + job.getKey());
-        }
+        String userId = requireString(variables, "userId");
+        String userName = asNullableString(variables.get("userName"));
+        String email = asNullableString(variables.get("e_mail"));
 
-        String userId = userIdValue.toString();
-        Boolean portfolioCreatedFlag = parseOptionalBoolean(variables.get("isPortfolioCreated"));
-        Boolean userCreatedFlag = parseOptionalBoolean(variables.get("isUserCreated"));
-
-        boolean shouldAttemptPortfolioDeletion = portfolioCreatedFlag == null || Boolean.TRUE.equals(portfolioCreatedFlag);
-        if (shouldAttemptPortfolioDeletion) {
-            boolean deleted = deletePortfolioWithWait(userId, portfolioCreatedFlag == null);
-            if (deleted) {
-                log.info("Compensated portfolio for user {} after onboarding failure", userId);
-            } else {
-                log.warn("Unable to compensate portfolio for user {}; portfolio not found", userId);
-            }
+        boolean portfolioDeleted = deletePortfolioWithWait(userId);
+        if (portfolioDeleted) {
+            log.info("Deleted portfolio for user {} during compensation", userId);
         } else {
-            log.info("Portfolio creation flagged as failed for {}; no portfolio to compensate", userId);
+            log.warn("Portfolio for user {} not found during compensation", userId);
         }
 
-        boolean shouldAttemptUserDeletion = userCreatedFlag == null || Boolean.TRUE.equals(userCreatedFlag);
-        if (shouldAttemptUserDeletion) {
-            userCompensationProducer.publishUserDeletion(
-                userId,
-                "Portfolio compensation task " + job.getKey() + " requested user rollback"
-            );
-        } else {
-            log.info("User creation flagged as failed for {}; skipping user compensation from portfolio worker", userId);
-        }
+        userCompensationProducer.publishUserDeletion(
+            userId,
+            userName,
+            email,
+            "Portfolio compensation job %d requested user rollback".formatted(job.getKey())
+        );
 
-        client.newCompleteCommand(job.getKey()).send().join();
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("isPortfolioCreated", portfolioDeleted ? Boolean.FALSE : Boolean.TRUE);
+        client.newCompleteCommand(job.getKey())
+            .variables(updates)
+            .send()
+            .join();
     }
 
-    private Boolean parseOptionalBoolean(Object value) {
-        if (value == null) {
-            return null;
+    private boolean deletePortfolioWithWait(String userId) {
+        if (portfolioService.getPortfolio(userId).isPresent()) {
+            return portfolioService.deletePortfolioForUser(userId);
         }
-        if (value instanceof Boolean boolValue) {
-            return boolValue;
-        }
-        return Boolean.parseBoolean(value.toString());
-    }
-
-
-    private boolean deletePortfolioWithWait(String userId, boolean waitForCreation) {
-        if (portfolioService.getPortfolio(userId).isEmpty()) {
-            if (!waitForCreation) {
-                return false;
-            }
-            log.info("Portfolio for {} not visible yet; waiting up to {} ms before deletion", userId,
-                CREATION_WAIT_TIMEOUT.toMillis());
-            if (!waitForPortfolioCreation(userId)) {
-                return false;
-            }
-        }
-        return portfolioService.deletePortfolioForUser(userId);
-    }
-
-    private boolean waitForPortfolioCreation(String userId) {
         long deadline = System.currentTimeMillis() + CREATION_WAIT_TIMEOUT.toMillis();
         while (System.currentTimeMillis() < deadline) {
             if (portfolioService.getPortfolio(userId).isPresent()) {
-                return true;
+                return portfolioService.deletePortfolioForUser(userId);
             }
             try {
                 Thread.sleep(CREATION_POLL_INTERVAL.toMillis());
@@ -98,6 +68,19 @@ public class PortfolioCompensationWorker {
                 throw new IllegalStateException("Compensation wait interrupted", ex);
             }
         }
-        return portfolioService.getPortfolio(userId).isPresent();
+        return portfolioService.getPortfolio(userId).isPresent()
+            && portfolioService.deletePortfolioForUser(userId);
+    }
+
+    private String requireString(Map<String, Object> variables, String key) {
+        Object value = variables.get(key);
+        if (value == null) {
+            throw new IllegalStateException(key + " variable missing for portfolio compensation job");
+        }
+        return value.toString();
+    }
+
+    private String asNullableString(Object value) {
+        return value != null ? value.toString() : null;
     }
 }
