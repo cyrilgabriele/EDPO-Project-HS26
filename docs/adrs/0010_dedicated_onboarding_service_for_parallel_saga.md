@@ -23,14 +23,20 @@ Keeping the BPMN inside `user-service` creates several issues:
 ## Decision
 
 Introduce `onboarding-service` as a dedicated orchestration service. It owns the BPMN process
-(`userOnboarding.bpmn`) and deploys it via the Camunda 8 Zeebe client. The user-facing form
-still triggers the process through Camunda Tasklist, but once mail confirmation arrives the process
-fans out via a Parallel Gateway to two service tasks: `userCreationWorker` (served by user-service)
-and `portfolioCreationWorker` (served by portfolio-service). The process joins after both jobs
-finish, fulfilling the Parallel Saga pattern highlighted in Lecture 5.
+(`userOnboarding.bpmn`) and deploys it via the Camunda 8 Zeebe client. The user-facing form still
+triggers the process through Camunda Tasklist, but the BPMN now coordinates four workers:
+`userPreparationWorker` (user-service) runs before the confirmation wait, generating the `userId`,
+building the confirmation URL, and persisting a `user_confirmation_links` row as `PENDING` so that
+user-service keeps definitive saga state. Once the `UserConfirmed` message arrives, a Parallel
+Gateway fans out to `userCreationWorker` (user-service) and `portfolioCreationWorker`
+(portfolio-service) whose jobs must both succeed before the saga proceeds. A boundary timer leads to
+`invalidateConfirmationWorker` (user-service) that marks any stale confirmation rows `INVALIDATED`
+automatically.
 
-Each domain service now only hosts its Zeebe workers and local persistence. The orchestrator
-simply publishes jobs and listens for `UserConfirmedEvent` messages.
+Each domain service continues to host its Zeebe workers and local persistence; additionally,
+user-service actively publishes the `UserConfirmed` correlation message from its
+`UserConfirmationController`, so it plays both worker-host and message-sender roles while
+onboarding-service remains the only BPMN orchestrator.
 
 ## Consequences
 
