@@ -24,3 +24,18 @@
 
 #pagebreak()
 #include "./content/chapters/team-responsibilities.typ"
+
+#pagebreak()
+#include "./content/chapters/concepts.typ"
+
+#pagebreak()
+#include "./content/chapters/architecture.typ"
+
+#pagebreak()
+#include "./content/chapters/adrs.typ"
+
+#pagebreak()
+#include "./content/chapters/results.typ"
+
+#pagebreak()
+#include "./content/chapters/lessons-learned.typ"
