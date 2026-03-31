@@ -34,23 +34,28 @@ public class UserConfirmationLinkEntity {
     @Column(name = "invalidated_at")
     private Instant invalidatedAt;
 
+    @Column(name = "user_name")
+    private String userName;
+
     private UserConfirmationLinkEntity(String userId,
                                        ConfirmationLinkStatus status,
                                        Instant createdAt,
                                        Instant updatedAt,
                                        Instant confirmedAt,
-                                       Instant invalidatedAt) {
+                                       Instant invalidatedAt,
+                                       String userName) {
         this.userId = userId;
         this.status = status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.confirmedAt = confirmedAt;
         this.invalidatedAt = invalidatedAt;
+        this.userName = userName;
     }
 
-    public static UserConfirmationLinkEntity pending(String userId) {
+    public static UserConfirmationLinkEntity pending(String userId, String userName) {
         Instant now = Instant.now();
-        return new UserConfirmationLinkEntity(userId, ConfirmationLinkStatus.PENDING, now, now, null, null);
+        return new UserConfirmationLinkEntity(userId, ConfirmationLinkStatus.PENDING, now, now, null, null, userName);
     }
 
     public boolean isPending() {

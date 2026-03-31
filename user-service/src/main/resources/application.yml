@@ -9,13 +9,13 @@ spring:
       group-id: user-service-compensation
       auto-offset-reset: earliest
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/cryptoflow}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/user_service_db}
     username: ${SPRING_DATASOURCE_USERNAME:cryptoflow}
     password: ${SPRING_DATASOURCE_PASSWORD:cryptoflow}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -23,6 +23,8 @@ spring:
           lob:
             non_contextual_creation: true
     open-in-view: false
+  flyway:
+    enabled: true
 
 server:
   port: 8084
@@ -45,3 +47,4 @@ crypto:
     topic:
       portfolio-compensation: crypto.portfolio.compensation
       user-compensation: crypto.user.compensation
+      user-confirmed: user.confirmed

@@ -16,8 +16,15 @@ public class ConfirmationLinkService {
 
     private final SpringDataUserConfirmationLinkRepository confirmationLinkRepository;
 
-    public void registerPendingLink(String userId) {
-        confirmationLinkRepository.save(UserConfirmationLinkEntity.pending(userId));
+    public void registerPendingLink(String userId, String userName) {
+        confirmationLinkRepository.save(UserConfirmationLinkEntity.pending(userId, userName));
+    }
+
+    @Transactional(readOnly = true)
+    public String getUserName(String userId) {
+        return confirmationLinkRepository.findById(userId)
+            .map(UserConfirmationLinkEntity::getUserName)
+            .orElse(null);
     }
 
     public boolean invalidateLink(String userId) {

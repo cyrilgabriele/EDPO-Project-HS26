@@ -1,0 +1,105 @@
+{
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.6.0",
+  "exporter": {
+    "name": "Camunda Web Modeler",
+    "version": "f133611"
+  },
+  "schemaVersion": 19,
+  "id": "opsInterventionForm",
+  "components": [
+    {
+      "text": "## Ops Intervention Required\n\nA critical error occurred in the order processing pipeline. Review the details below, investigate the issue, and complete this task once resolved.\n",
+      "type": "text",
+      "layout": {
+        "row": "Row_header",
+        "columns": null
+      },
+      "id": "Field_header"
+    },
+    {
+      "label": "Transaction ID",
+      "type": "textfield",
+      "id": "Field_transactionId",
+      "key": "transactionId",
+      "readonly": true,
+      "layout": {
+        "row": "Row_ids",
+        "columns": 8
+      }
+    },
+    {
+      "label": "User ID",
+      "type": "textfield",
+      "id": "Field_userId",
+      "key": "userId",
+      "readonly": true,
+      "layout": {
+        "row": "Row_ids",
+        "columns": 4
+      }
+    },
+    {
+      "label": "Symbol",
+      "type": "textfield",
+      "id": "Field_symbol",
+      "key": "symbol",
+      "readonly": true,
+      "layout": {
+        "row": "Row_order",
+        "columns": 4
+      }
+    },
+    {
+      "label": "Amount",
+      "type": "textfield",
+      "id": "Field_amount",
+      "key": "amount",
+      "readonly": true,
+      "layout": {
+        "row": "Row_order",
+        "columns": 4
+      }
+    },
+    {
+      "label": "Target Price (USDT)",
+      "type": "textfield",
+      "id": "Field_price",
+      "key": "price",
+      "readonly": true,
+      "layout": {
+        "row": "Row_order",
+        "columns": 4
+      }
+    },
+    {
+      "label": "Matched Price (USDT)",
+      "type": "textfield",
+      "id": "Field_matchedPrice",
+      "key": "matchedPrice",
+      "readonly": true,
+      "layout": {
+        "row": "Row_matched",
+        "columns": null
+      },
+      "conditional": {
+        "hide": "=matchedPrice = null or matchedPrice = \"\""
+      }
+    },
+    {
+      "label": "Resolution Notes",
+      "type": "textarea",
+      "id": "Field_resolutionNotes",
+      "key": "opsResolutionNotes",
+      "description": "Describe how the issue was investigated and resolved",
+      "validate": {
+        "required": true
+      },
+      "layout": {
+        "row": "Row_notes",
+        "columns": null
+      }
+    }
+  ],
+  "type": "default"
+}

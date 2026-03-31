@@ -10,6 +10,16 @@ logging:
 spring:
   application:
     name: transaction-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/transaction_service_db}
+    username: ${SPRING_DATASOURCE_USERNAME:cryptoflow}
+    password: ${SPRING_DATASOURCE_PASSWORD:cryptoflow}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
@@ -30,6 +40,8 @@ crypto:
     topic:
       price-raw: crypto.price.raw
       price-raw-dlt: crypto.price.raw.DLT
+      order-approved: transaction.order.approved
+      user-confirmed: user.confirmed
 
 management:
   endpoints:

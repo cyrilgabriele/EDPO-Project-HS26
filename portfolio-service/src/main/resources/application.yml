@@ -8,7 +8,7 @@ spring:
     serialization:
       write-dates-as-timestamps: false
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/cryptoflow}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/portfolio_service_db}
     username: ${SPRING_DATASOURCE_USERNAME:cryptoflow}
     password: ${SPRING_DATASOURCE_PASSWORD:cryptoflow}
   jpa:
@@ -40,6 +40,7 @@ crypto:
       price-raw-dlt: crypto.price.raw.DLT
       portfolio-compensation: crypto.portfolio.compensation
       user-compensation: crypto.user.compensation
+      order-approved: transaction.order.approved
 
 management:
   endpoints:
