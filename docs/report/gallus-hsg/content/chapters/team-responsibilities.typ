@@ -10,20 +10,24 @@ The project was developed by a two-person team over the course of the FS2026 sem
     "Ioannis Theodosiadis",
     [
       - Architecture design
+      - Place order process
       - Portfolio Service
       - Transaction Service
+      - Infrastructure
       - Kafka experiments
       - Documentation
     ],
-    [Designed the overall system architecture and hexagonal service structure. Implemented the portfolio service (Kafka consumer, local price cache, REST API, JPA persistence with Flyway), the user service (Camunda workers, confirmation flow, compensation logic), and the transaction service (order matching, BPMN process). Led architecture decision documentation and report writing.],
+    [Designed the overall system architecture and service structure. Owned and implemented the place order flow and the related transaction service logic (order matching and BPMN-based orchestration), and built the portfolio service (Kafka consumer, local price cache, REST API, JPA persistence with Flyway). Led infrastructure setup for local integration, contributed to Kafka reliability experiments, authored architecture decisions, and report documentation.],
     "Cyril Gabriele",
     [
       - Architecture design
+      - Onboarding process
       - Market Data Service
+      - User Service
       - Onboarding Service
       - Kafka experiments
-      - Infrastructure
+      - Documentation
     ],
-    [Co-designed the system architecture. Implemented the market data service (Binance WebSocket integration, Kafka producer with deterministic partitioning). Built the onboarding service as the saga orchestrator with the `userOnboarding.bpmn` process. Designed and ran the Kafka reliability experiments. Set up Docker Compose infrastructure and CI configuration.],
+    [Co-designed the system architecture. Owned and implemented the onboarding process end to end across the onboarding service and user service, including the `userOnboarding.bpmn` orchestration, Camunda workers, confirmation handling, and compensation behavior. Built the market data service (Binance WebSocket integration and deterministic Kafka producer partitioning), contributed to Kafka reliability experiments, authored architecture decisions, and report documentation.],
   ),
 ) <tab:team-responsibilities>
