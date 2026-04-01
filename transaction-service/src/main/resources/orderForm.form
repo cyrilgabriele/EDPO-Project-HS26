@@ -1,0 +1,102 @@
+{
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.6.0",
+  "exporter": {
+    "name": "Camunda Web Modeler",
+    "version": "f133611"
+  },
+  "schemaVersion": 19,
+  "id": "orderForm",
+  "components": [
+    {
+      "text": "**Validation Error**\n*Fix: {{validationError}}*\n",
+      "type": "text",
+      "layout": {
+        "row": "Row_1hmkiew",
+        "columns": null
+      },
+      "id": "Field_0g4knyn",
+      "conditional": {
+        "hide": "=validationError = null or validationError = \"\""
+      }
+    },
+    {
+      "label": "User ID",
+      "type": "textfield",
+      "id": "userId_field",
+      "key": "userId",
+      "description": "Your user ID received after registration. In production this is injected automatically from the session.",
+      "validate": {
+        "required": true
+      },
+      "layout": {
+        "row": "Row_1jtm8ni"
+      }
+    },
+    {
+      "label": "Symbol",
+      "values": [
+        {
+          "label": "BTC / USDT",
+          "value": "BTCUSDT"
+        },
+        {
+          "label": "ETH / USDT",
+          "value": "ETHUSDT"
+        },
+        {
+          "label": "SOL / USDT",
+          "value": "SOLUSDT"
+        },
+        {
+          "label": "BNB / USDT",
+          "value": "BNBUSDT"
+        },
+        {
+          "label": "XRP / USDT",
+          "value": "XRPUSDT"
+        }
+      ],
+      "type": "select",
+      "id": "symbol_field",
+      "key": "symbol",
+      "validate": {
+        "required": true
+      },
+      "layout": {
+        "row": "Row_0l556i6"
+      }
+    },
+    {
+      "label": "Amount",
+      "type": "number",
+      "id": "amount_field",
+      "key": "amount",
+      "description": "Quantity to purchase",
+      "validate": {
+        "required": true,
+        "min": 0
+      },
+      "serializeToString": true,
+      "layout": {
+        "row": "Row_0cvquka"
+      }
+    },
+    {
+      "label": "Target Price (USDT)",
+      "type": "number",
+      "id": "price_field",
+      "key": "price",
+      "description": "Order executes when the market price drops to or below this value",
+      "validate": {
+        "required": true,
+        "min": 0
+      },
+      "serializeToString": true,
+      "layout": {
+        "row": "Row_0eppxcq"
+      }
+    }
+  ],
+  "type": "default"
+}

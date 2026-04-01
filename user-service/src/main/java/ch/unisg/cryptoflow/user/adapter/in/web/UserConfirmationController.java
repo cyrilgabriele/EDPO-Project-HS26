@@ -1,5 +1,7 @@
 package ch.unisg.cryptoflow.user.adapter.in.web;
 
+import ch.unisg.cryptoflow.events.UserConfirmedEvent;
+import ch.unisg.cryptoflow.user.adapter.out.kafka.UserConfirmedEventProducer;
 import ch.unisg.cryptoflow.user.application.service.ConfirmationLinkService;
 import ch.unisg.cryptoflow.user.domain.ConfirmationLinkStatus;
 import io.camunda.zeebe.client.ZeebeClient;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 
@@ -23,6 +26,7 @@ public class UserConfirmationController {
 
     private final ZeebeClient zeebeClient;
     private final ConfirmationLinkService confirmationLinkService;
+    private final UserConfirmedEventProducer userConfirmedEventProducer;
 
     @GetMapping("/{userId}")
     public ResponseEntity<Map<String, Object>> confirmUser(@PathVariable String userId) {
@@ -77,6 +81,13 @@ public class UserConfirmationController {
                 .variables(Map.of("userId", userId, "mailConfirmed", true))
                 .send()
                 .join();
+
+            String userName = confirmationLinkService.getUserName(userId);
+            if (userName == null) {
+                log.warn("User name not found in confirmation link for user {} — using fallback", userId);
+                userName = userId;
+            }
+            userConfirmedEventProducer.publish(new UserConfirmedEvent(userId, userName, Instant.now()));
 
             log.info("Published UserConfirmedEvent message for user {}", userId);
             return ResponseEntity.ok(Map.of(

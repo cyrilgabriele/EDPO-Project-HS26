@@ -2,6 +2,7 @@ package ch.unisg.cryptoflow.portfolio.adapter.out.persistence;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +19,7 @@ public class PortfolioEntity {
     @Column(nullable = false, unique = true)
     private String userId;
 
+    @Setter
     @Column(name = "user_name")
     private String userName;
 
@@ -35,7 +37,4 @@ public class PortfolioEntity {
         this.userName = userName;
     }
 
-    public void setUserName(String userName) {
-        this.userName = userName;
-    }
 }

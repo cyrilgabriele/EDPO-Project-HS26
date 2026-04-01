@@ -2,6 +2,7 @@ package ch.unisg.cryptoflow.user.config;
 
 import ch.unisg.cryptoflow.events.PortfolioCompensationRequestedEvent;
 import ch.unisg.cryptoflow.events.UserCompensationRequestedEvent;
+import ch.unisg.cryptoflow.events.UserConfirmedEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -66,5 +67,22 @@ public class KafkaCompensationConfig {
             new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(userCompensationConsumerFactory());
         return factory;
+    }
+
+    @Bean
+    public ProducerFactory<String, UserConfirmedEvent> userConfirmedProducerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        props.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
+        return new DefaultKafkaProducerFactory<>(props);
+    }
+
+    @Bean
+    public KafkaTemplate<String, UserConfirmedEvent> userConfirmedKafkaTemplate(
+        ProducerFactory<String, UserConfirmedEvent> userConfirmedProducerFactory
+    ) {
+        return new KafkaTemplate<>(userConfirmedProducerFactory);
     }
 }

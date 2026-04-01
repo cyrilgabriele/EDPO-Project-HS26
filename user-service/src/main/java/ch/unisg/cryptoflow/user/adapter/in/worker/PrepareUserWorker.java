@@ -38,7 +38,7 @@ public class PrepareUserWorker {
         updates.put("userId", userId);
         updates.put("userCreationMailContent", mailContent);
 
-        confirmationLinkService.registerPendingLink(userId);
+        confirmationLinkService.registerPendingLink(userId, context.userName());
 
         log.info("Prepared user {} with email {} and confirmation link {}", context.userName(), context.email(), confirmationLink);
         client.newCompleteCommand(job.getKey())

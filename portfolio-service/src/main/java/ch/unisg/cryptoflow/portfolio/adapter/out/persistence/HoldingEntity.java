@@ -1,9 +1,11 @@
 package ch.unisg.cryptoflow.portfolio.adapter.out.persistence;
 
 import jakarta.persistence.*;
+import lombok.Getter;
 
 import java.math.BigDecimal;
 
+@Getter
 @Entity
 @Table(name = "holding")
 public class HoldingEntity {
@@ -35,13 +37,9 @@ public class HoldingEntity {
         this.portfolio = portfolio;
     }
 
-    public Long getId() { return id; }
-
-    public String getSymbol() { return symbol; }
-
-    public BigDecimal getQuantity() { return quantity; }
-
-    public BigDecimal getAveragePurchasePrice() { return averagePurchasePrice; }
-
-    public PortfolioEntity getPortfolio() { return portfolio; }
+    /** Called on subsequent purchases: updates quantity and recalculates the weighted average price. */
+    public void updateQuantityAndPrice(BigDecimal newQuantity, BigDecimal newAveragePrice) {
+        this.quantity = newQuantity;
+        this.averagePurchasePrice = newAveragePrice;
+    }
 }

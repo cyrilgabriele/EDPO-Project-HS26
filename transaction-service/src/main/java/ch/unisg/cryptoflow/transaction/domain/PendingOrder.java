@@ -5,6 +5,7 @@ import java.time.Instant;
 
 public record PendingOrder(
         String transactionId,
+        String userId,
         String symbol,
         BigDecimal amount,
         BigDecimal targetPrice,

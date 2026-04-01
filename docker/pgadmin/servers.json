@@ -1,0 +1,34 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "user-service-db",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "user_service_db",
+      "Username": "cryptoflow",
+      "PassFile": "/pgadmin4/pgpass",
+      "SSLMode": "prefer"
+    },
+    "2": {
+      "Name": "portfolio-service-db",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "portfolio_service_db",
+      "Username": "cryptoflow",
+      "PassFile": "/pgadmin4/pgpass",
+      "SSLMode": "prefer"
+    },
+    "3": {
+      "Name": "transaction-service-db",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "transaction_service_db",
+      "Username": "cryptoflow",
+      "PassFile": "/pgadmin4/pgpass",
+      "SSLMode": "prefer"
+    }
+  }
+}

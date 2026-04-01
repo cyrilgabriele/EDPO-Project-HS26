@@ -70,7 +70,14 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
 
-  # ── PostgreSQL (portfolio state) ────────────────────────────────────────────
+  # ── PostgreSQL (one instance, per-service databases) ────────────────────────
+  #
+  # Each microservice connects to its own database (user_service_db,
+  # portfolio_service_db, transaction_service_db) so that no service can
+  # directly read or write another service's tables.
+  #
+  # The init script runs once on first startup (empty postgres-data volume).
+  # To re-apply: docker compose down -v && docker compose up -d
   postgres:
     image: postgres:16-alpine
     ports:
@@ -86,8 +93,18 @@ services:
       retries: 5
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro
 
   # ── pgAdmin (PostgreSQL GUI) ─────────────────────────────────────────────────
+  #
+  # Opens directly at http://localhost:5050 with no login page.
+  # All three service databases are pre-connected under the "CryptoFlow" group.
+  #
+  # SERVER_MODE=False  → single-user desktop mode (no login form)
+  # MASTER_PASSWORD_REQUIRED=False → no master password prompt
+  #
+  # The pgpass file must be chmod 600 and owned by the pgadmin user (uid 5050),
+  # so we copy it to /tmp in the entrypoint before pgAdmin starts.
   pgadmin:
     image: dpage/pgadmin4:latest
     depends_on:
@@ -96,10 +113,14 @@ services:
     ports:
       - "5050:80"   # http://localhost:5050
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@cryptoflow.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_DEFAULT_EMAIL: admin@cryptoflow.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     volumes:
       - pgadmin-data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./pgadmin/pgpass:/pgadmin4/pgpass:ro
 
   # ── Market Data Service ─────────────────────────────────────────────────────
   market-data-service:
@@ -129,7 +150,7 @@ services:
       - "8082:8082"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-cryptoflow}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/portfolio_service_db
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-cryptoflow}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-cryptoflow}
       CAMUNDA_CLIENT_ID_PORTFOLIO_SERVICE: ${CAMUNDA_CLIENT_ID_PORTFOLIO_SERVICE}
@@ -145,10 +166,15 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     ports:
       - "8083:8083"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/transaction_service_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-cryptoflow}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-cryptoflow}
       CAMUNDA_CLIENT_ID_TRANSACTION_SERVICE: ${CAMUNDA_CLIENT_ID_TRANSACTION_SERVICE}
       CAMUNDA_CLIENT_SECRET_TRANSACTION_SERVICE: ${CAMUNDA_CLIENT_SECRET_TRANSACTION_SERVICE}
       CAMUNDA_CLUSTER_ID_TRANSACTION_SERVICE: ${CAMUNDA_CLUSTER_ID_TRANSACTION_SERVICE}
@@ -167,9 +193,9 @@ services:
     ports:
       - "8084:8084"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cryptoflow
-      SPRING_DATASOURCE_USERNAME: cryptoflow
-      SPRING_DATASOURCE_PASSWORD: cryptoflow
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_service_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-cryptoflow}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-cryptoflow}
       CAMUNDA_CLIENT_ID_USER_SERVICE: ${CAMUNDA_CLIENT_ID_USER_SERVICE}
       CAMUNDA_CLIENT_SECRET_USER_SERVICE: ${CAMUNDA_CLIENT_SECRET_USER_SERVICE}
       CAMUNDA_CLUSTER_ID_USER_SERVICE: ${CAMUNDA_CLUSTER_ID_USER_SERVICE}

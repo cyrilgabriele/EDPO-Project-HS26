@@ -32,7 +32,7 @@ public class OrderExecutedMessageSender {
                 transactionId, symbol, matchedPrice);
 
         zeebeClient.newPublishMessageCommand()
-                .messageName("price-matched")
+                .messageName("priceMatchedEvent")
                 .correlationKey(transactionId)
                 .variables(Map.of(
                         "matchedPrice", matchedPrice.toPlainString(),
