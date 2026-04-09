@@ -1,6 +1,6 @@
 = Lecture Concepts <lecture-concepts>
 
-This chapter follows the sequence in which the relevant concepts appeared in the EDPO lectures: Kafka and event-driven communication in Lecture 1 and 2, process orchestration and service boundaries in Lecture 3 and 4, and transactional saga and resilience patterns in Lecture 5. For each concept listed in Section 1.1, it explains briefly and precisely how CryptoFlow applies it and which ADRs capture the underlying decision.
+This chapter follows the sequence in which the relevant concepts appeared in the EDPO lectures: Kafka and event-driven communication in Lecture 1 and 2, process orchestration and service boundaries in Lecture 3 and 4, and transactional saga and resilience patterns in Lecture 5. For each concept listed in @domain-and-goals, it explains briefly and precisely how CryptoFlow applies it and which ADRs capture the underlying decision.
 
 == Event-Driven Communication through Apache Kafka
 
@@ -10,7 +10,7 @@ In practice, `market-data-service` publishes `CryptoPriceUpdatedEvent` records t
 
 == Event-Carried State Transfer
 
-Lecture 2 presented Event-Carried State Transfer (ECST) as the pattern in which an event carries enough state for consumers to maintain their own local view instead of querying the source service. CryptoFlow applies ECST in four places.
+Lecture 2 presented Event-Carried State Transfer (ECST), amongst others, as the pattern in which an event carries enough state for consumers to maintain their own local view instead of querying the source service. CryptoFlow applies ECST in four places.
 
 First, ADR-0002 replicates market prices from `market-data-service` into the `portfolio-service` price cache, so portfolio valuation reads the locally maintained state instead of calling the producer. Second, ADR-0015 keeps portfolio updates autonomous: after an order is approved, `transaction-service` publishes `OrderApprovedEvent`, and `portfolio-service` updates holdings independently. Third, ADR-0011 uses event-carried compensation requests so user and portfolio data can be deleted across service boundaries without synchronous rollback calls. Fourth, ADR-0017 uses the same principle for user validation: `transaction-service` maintains a local confirmed-user projection from `UserConfirmedEvent` messages and validates new orders locally.
 
@@ -18,7 +18,9 @@ First, ADR-0002 replicates market prices from `market-data-service` into the `po
 
 Lectures 3 and 4 introduced workflow engines, BPMN, durable waiting states, and message correlation. CryptoFlow implements these ideas with Camunda 8 / Zeebe, as formalized in ADR-0008.
 
-Two BPMN processes are central. `onboarding-service` deploys `userOnboarding.bpmn`, which coordinates user preparation, email confirmation, timeout handling, and the post-confirmation creation steps. `transaction-service` deploys `placeOrder.bpmn`, which coordinates order submission, price-match waiting, timeout handling, and the final notification path. In both cases, Zeebe owns the process state, timers, and correlation logic, while the services participate through stateless job workers. This avoids custom workflow state tables and allows long-running waits without blocking threads or database transactions.
+The alternative would have been Camunda 7 (Operaton), which embeds the engine inside the application and stores process state in the application database. For CryptoFlow this is a poor fit for two reasons. First, `placeOrder` instances wait at an event-based gateway for a price match correlated by `transactionId`. With many concurrent open offers, an embedded engine would require a shared polling table or in-memory workaround, whereas Zeebe's partitioned log lets each instance wait independently without job-lock contention. Second, the onboarding and order-notification workflows use Kafka consumers and SMTP delivery. In Camunda 8, these steps are handled through connector templates directly inside the BPMN model, so the application code contains no notification client or additional Kafka producer for orchestration concerns. With an embedded engine, each integration would need separate application-level client code.
+
+Two BPMN processes are central. `onboarding-service` deploys `userOnboarding.bpmn`, which coordinates user preparation, email confirmation, timeout handling, and the post-confirmation creation steps. `transaction-service` deploys `placeOrder.bpmn`, which coordinates order submission, price-match waiting, timeout handling, and the final notification path. In both cases, Zeebe owns the process state, timers, and correlation logic, while the services participate through stateless job workers. This keeps the application databases free of workflow state and allows long-running waits without blocking threads or database transactions. Camunda Operate provides runtime visibility into all in-flight and completed instances, which is especially useful for debugging stuck or rejected orders.
 
 == Service Autonomy through Bounded Contexts
 
