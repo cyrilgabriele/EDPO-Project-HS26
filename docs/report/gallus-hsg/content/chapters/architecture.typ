@@ -155,7 +155,17 @@ The `userOnboarding.bpmn` process, deployed by the onboarding service, implement
   caption: [User onboarding BPMN process with parallel saga, confirmation wait, and compensation paths],
 ) <fig:onboarding-parallel-saga>
 
-@fig:onboarding-parallel-saga shows the full process. Its structure reflects three key modeling decisions:
+#figure(
+  image("figures/onboarding-sequence.svg", width: 100%),
+  caption: [Onboarding runtime sequence: confirmation, parallel creation, and compensation. The compensation branch is drawn in one direction; the mirror path applies when the user-creation branch is the failing one],
+) <fig:onboarding-sequence>
+
+#figure(
+  image("figures/user-confirmed-readmodel-sequence.svg", width: 85%),
+  caption: [Supporting detail: `UserConfirmedEvent` propagation into the `transaction-service` confirmed-user projection, enabling later order placement to validate users locally (ADR-0017)],
+) <fig:user-confirmed-readmodel-sequence>
+
+@fig:onboarding-parallel-saga shows the orchestrated BPMN shape, while @fig:onboarding-sequence shows the core runtime collaboration — parallel creation and compensation mediated by the compensation Kafka topics (ADR-0011). The cross-cutting read-model propagation triggered by the confirmation step is kept out of @fig:onboarding-sequence to preserve focus; @fig:user-confirmed-readmodel-sequence shows it as a dedicated detail. Its structure reflects three key modeling decisions:
 
 *Event-based confirmation wait.* After the confirmation email is sent, the process suspends at an event-based gateway rather than polling or blocking a thread. Zeebe durably persists the waiting state, so the process can survive service restarts during the wait. The one-minute timer boundary ensures that abandoned registrations terminate cleanly by marking the confirmation link as `INVALIDATED` (ADR-0010).
 
@@ -172,7 +182,17 @@ The `placeOrder.bpmn` process, deployed by the transaction service, implements a
   caption: [Place order BPMN process with price matching, timeout handling, and downstream publication],
 ) <fig:placeorder-fairy-tale-saga>
 
-@fig:placeorder-fairy-tale-saga shows the full process. Its structure reflects the following modeling decisions:
+#figure(
+  image("figures/placeOrder-sequence.svg", width: 90%),
+  caption: [Place order runtime sequence: local user validation, price-match wait, approval, publication, and downstream portfolio update],
+) <fig:placeorder-sequence>
+
+#figure(
+  image("figures/outbox-sequence.svg", width: 90%),
+  caption: [Supporting detail: transactional outbox mechanics. `approveOrderWorker` writes the APPROVED status and the outbox row in one local transaction; `publishOrderApprovedWorker` publishes and marks the row; the `OutboxScheduler` republishes orphaned rows (ADR-0014)],
+) <fig:outbox-sequence>
+
+@fig:placeorder-fairy-tale-saga shows the orchestrated BPMN shape, while @fig:placeorder-sequence shows the core runtime collaboration — including the downstream `portfolio-service` consumer that is deliberately outside the orchestrated flow (ADR-0013, ADR-0015) and therefore not visible in the BPMN. The outbox write/publish/recover mechanics are kept out of @fig:placeorder-sequence to preserve focus; @fig:outbox-sequence shows them as a dedicated detail. Its structure reflects the following modeling decisions:
 
 *Event-based price-match wait.* The process suspends at an event-based gateway waiting for a `price-matched` message correlated by `transactionId`. This wait is of non-deterministic duration — it may last seconds or never terminate. Zeebe durably suspends the instance without holding a distributed lock or database connection (ADR-0013). A one-minute timer provides an upper bound: if no match occurs, the order is rejected and the user is notified.
 

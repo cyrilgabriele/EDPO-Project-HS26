@@ -1,0 +1,45 @@
+@startuml outbox-sequence
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam ArrowColor #546E7A
+skinparam ArrowFontColor #37474F
+skinparam ArrowFontSize 11
+skinparam sequenceParticipantBorderColor #78909C
+skinparam sequenceParticipantBackgroundColor #FAFAFA
+skinparam sequenceLifeLineBorderColor #B0BEC5
+skinparam sequenceDatabaseBackgroundColor #FAFAFA
+skinparam noteBackgroundColor #FFFDE7
+skinparam noteBorderColor #BDBDBD
+skinparam sequenceGroupBorderColor #90A4AE
+skinparam sequenceGroupHeaderFontColor #37474F
+skinparam sequenceGroupBackgroundColor #ECEFF1
+skinparam sequenceDividerBackgroundColor #ECEFF1
+
+participant "Camunda\nplaceOrder" as C #EDE7F6
+participant "transaction-service" as T #E3F2FD
+database "transaction DB\n(orders + outbox)" as DB #E3F2FD
+queue "Kafka\ntransaction.order.approved" as K #FFF3E0
+participant "OutboxScheduler" as S #E3F2FD
+
+C -> T : run approveOrderWorker
+group Single local transaction
+  T -> DB : UPDATE order SET status = APPROVED
+  T -> DB : INSERT outbox row (publishedAt = null)
+end
+T --> C : job completed
+
+C -> T : run publishOrderApprovedWorker
+T -> DB : read unpublished outbox row
+T -> K : publish transaction.order.approved
+T -> DB : UPDATE outbox SET publishedAt = now()
+T --> C : job completed
+
+== Recovery path (safety net) ==
+
+S -> DB : scan rows older than 5 min\nwith publishedAt = null
+DB --> S : orphaned outbox rows
+S -> K : republish
+S -> DB : mark published
+
+@enduml

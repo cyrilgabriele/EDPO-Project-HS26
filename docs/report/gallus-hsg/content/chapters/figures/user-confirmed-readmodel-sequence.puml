@@ -1,0 +1,35 @@
+@startuml user-confirmed-readmodel-sequence
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam ArrowColor #546E7A
+skinparam ArrowFontColor #37474F
+skinparam ArrowFontSize 11
+skinparam sequenceParticipantBorderColor #78909C
+skinparam sequenceParticipantBackgroundColor #FAFAFA
+skinparam sequenceLifeLineBorderColor #B0BEC5
+skinparam sequenceDatabaseBackgroundColor #FAFAFA
+skinparam noteBackgroundColor #FFFDE7
+skinparam noteBorderColor #BDBDBD
+skinparam sequenceGroupBorderColor #90A4AE
+skinparam sequenceGroupHeaderFontColor #37474F
+skinparam sequenceGroupBackgroundColor #ECEFF1
+skinparam sequenceDividerBackgroundColor #ECEFF1
+
+participant "user-service" as U #FCE4EC
+queue "Kafka\nuser.confirmed\n(log-compacted)" as K #FFF3E0
+participant "transaction-service" as T #E3F2FD
+database "confirmed-user\nprojection" as R #E3F2FD
+
+note over U : user clicks confirmation link
+U -> K : publish UserConfirmedEvent
+K --> T : deliver (at-least-once)
+T -> R : upsert by userId
+
+== Later, at order placement time ==
+
+T -> R : lookup userId locally
+R --> T : confirmed user exists
+note over T : no synchronous call to user-service (ADR-0017)
+
+@enduml
