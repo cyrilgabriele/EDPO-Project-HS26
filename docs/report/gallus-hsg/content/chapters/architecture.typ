@@ -7,7 +7,7 @@ This chapter describes the system architecture of CryptoFlow. It begins with the
 CryptoFlow is a distributed system comprising five Spring Boot microservices that communicate exclusively through Apache Kafka events and Camunda 8 (Zeebe) process orchestration. No service makes synchronous REST or gRPC calls to another service for domain operations — REST endpoints are exposed only for external client access.
 
 #figure(
-  image("figures/context-map-detailed.png", width: 100%),
+  image("figures/context-map-detailed.svg", width: 100%),
   caption: [Platform-level service topology showing the five services, event contracts, external actors, and Camunda orchestration],
 ) <fig:system-overview>
 
@@ -130,6 +130,21 @@ All producer configurations across services use the same settings. The `ErrorHan
 == Process-Oriented Architectural Parts
 
 CryptoFlow uses Camunda 8 / Zeebe (ADR-0008) to orchestrate the two long-running business processes described above. This section shows the BPMN models and explains the modeling decisions behind them.
+
+=== Commands, Events, and Workers
+
+CryptoFlow distinguishes three interaction primitives in its BPMN models, each with a fixed naming convention and distinct runtime semantics summarized in @tab:bpmn-primitives. Commands and workers share an imperative naming style but differ at runtime: Zeebe invokes a worker over gRPC and halts the instance on failure so the error can be caught by a boundary event (ADR-0018, see @fig:placeorder-fairy-tale-saga), whereas a command dispatches a message and the downstream consumer acts autonomously without reporting back to the engine. This convention is applied consistently in both `userOnboarding.bpmn` and `placeOrder.bpmn`.
+
+#figure(
+  caption: "Naming conventions and runtime semantics for BPMN interaction primitives",
+  table(
+    columns: (auto, 0.6fr, 0.8fr, 1.2fr),
+    [*Primitive*], [*BPMN element*], [*Naming convention*], [*Runtime semantics*],
+    [Command], [Send task], [verb + subject (imperative); job type suffix `Command`], [Orchestrator dispatches a message and continues. Downstream consumer acts autonomously; Zeebe receives no acknowledgement],
+    [Event], [Message intermediate catch event], [subject + verb (past tense); message reference suffix `Event`], [Correlated fact the process waits for. Zeebe durably suspends the instance and resumes it when a matching message arrives],
+    [Worker], [Service task], [verb + subject (imperative); job type suffix `Worker`], [Zeebe invokes the worker over gRPC with retries. Deterministic failures halt the instance at that step and can be caught by boundary events],
+  ),
+) <tab:bpmn-primitives>
 
 === User Onboarding Process
 
