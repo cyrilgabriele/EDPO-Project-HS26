@@ -1,0 +1,51 @@
+@startuml context-map-detailed
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultTextAlignment center
+skinparam rectangleBorderColor #78909C
+skinparam rectangleBackgroundColor #FAFAFA
+skinparam componentBorderColor #78909C
+skinparam cloudBorderColor #78909C
+skinparam actorBorderColor #37474F
+skinparam noteBackgroundColor #FFFDE7
+skinparam noteBorderColor #BDBDBD
+skinparam ArrowColor #546E7A
+skinparam ArrowFontColor #37474F
+skinparam ArrowFontSize 11
+
+actor "End user" as User
+cloud "Binance feeds\n(external market source)" as Binance #FFF3E0
+cloud "Camunda 8\norchestration" as Camunda #E3F2FD
+
+rectangle "CryptoFlow platform" as Platform #F5F5F5 {
+    component "market-data-service" as MD #FFF8E1
+    component "user-service" as US #FCE4EC
+    component "onboarding-service" as ONB #EDE7F6
+    component "transaction-service" as TR #E3F2FD
+    component "portfolio-service" as PF #E8F5E9
+}
+
+note bottom of Platform
+  **shared-events** module
+  Kafka event contracts shared by
+  market-data, user, transaction, portfolio
+end note
+
+Binance --> MD
+User --> Camunda : Tasklist forms
+
+MD --> TR : crypto.price.raw
+MD --> PF : crypto.price.raw
+US -left-> TR : user.confirmed\n(compacted)
+TR -right-> PF : transaction.order.approved
+US --> PF : crypto.portfolio.compensation
+PF --> US : crypto.user.compensation
+
+ONB .up.> Camunda : deploys userOnboarding
+TR ..> Camunda : deploys placeOrder
+Camunda ..> US : onboarding jobs
+Camunda ..> PF : onboarding jobs
+Camunda ...> TR : order jobs
+
+@enduml

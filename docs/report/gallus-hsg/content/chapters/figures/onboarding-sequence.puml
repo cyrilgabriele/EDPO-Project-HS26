@@ -1,0 +1,48 @@
+@startuml onboarding-sequence
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam ArrowColor #546E7A
+skinparam ArrowFontColor #37474F
+skinparam ArrowFontSize 11
+skinparam sequenceParticipantBorderColor #78909C
+skinparam sequenceParticipantBackgroundColor #FAFAFA
+skinparam sequenceLifeLineBorderColor #B0BEC5
+skinparam sequenceActorBorderColor #37474F
+skinparam sequenceActorBackgroundColor #FAFAFA
+skinparam noteBackgroundColor #FFFDE7
+skinparam noteBorderColor #BDBDBD
+skinparam sequenceGroupBorderColor #90A4AE
+skinparam sequenceGroupHeaderFontColor #37474F
+skinparam sequenceGroupBackgroundColor #ECEFF1
+
+actor "End user" as User
+participant "Camunda\nuserOnboarding" as C #EDE7F6
+participant "user-service" as U #FCE4EC
+participant "portfolio-service" as P #E8F5E9
+queue "Kafka\ncompensation\ntopics" as KC #FFF3E0
+
+User -> C : submit onboarding form
+C -> U : prepare confirmation link
+U --> User : send confirmation email
+User -> U : click confirmation link
+U -> C : correlate UserConfirmedEvent
+
+par Parallel creation
+  C -> U : create user
+  U --> C : user created or failed
+else
+  C -> P : create portfolio
+  P --> C : portfolio created or failed
+end
+
+alt Both branches succeed
+  note over C : saga completes successfully
+else Either branch fails
+  C -> U : run compensation handler
+  U -> KC : publish peer compensation event
+  KC --> P : apply idempotent delete
+  note over C : saga ends as compensated
+end
+
+@enduml

@@ -1,0 +1,41 @@
+@startuml deployment-overview
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam rectangleBorderColor #78909C
+skinparam rectangleBackgroundColor #FAFAFA
+
+rectangle "Docker Compose" as docker #F5F5F5 {
+    rectangle "Microservices" as services #E8EAF6 {
+        component "Market Data" as MDS #FFF8E1
+        component "Portfolio" as PS #E8F5E9
+        component "Transaction" as TS #E3F2FD
+        component "User" as US #FCE4EC
+        component "Onboarding" as OS #EDE7F6
+    }
+
+    component "Apache Kafka" as Kafka #FFF3E0
+    database "Transaction DB" as TDB #E3F2FD
+    database "User DB" as UDB #FCE4EC
+    database "Portfolio DB" as PDB #E8F5E9
+}
+
+cloud "Binance API" as Binance #FFF3E0
+cloud "Camunda 8 SaaS" as Camunda #E3F2FD
+actor "End User" as User
+
+Binance --> MDS
+User --> PS
+User --> TS
+
+services <--> Kafka
+PS --- PDB
+TS --- TDB
+US --- UDB
+
+PS ..> Camunda
+TS ..> Camunda
+US ..> Camunda
+OS ..> Camunda
+
+@enduml

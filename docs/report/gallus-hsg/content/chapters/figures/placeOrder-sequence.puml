@@ -1,0 +1,43 @@
+@startuml placeOrder-sequence
+skinparam backgroundColor transparent
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam ArrowColor #546E7A
+skinparam ArrowFontColor #37474F
+skinparam ArrowFontSize 11
+skinparam sequenceParticipantBorderColor #78909C
+skinparam sequenceParticipantBackgroundColor #FAFAFA
+skinparam sequenceLifeLineBorderColor #B0BEC5
+skinparam sequenceActorBorderColor #37474F
+skinparam sequenceActorBackgroundColor #FAFAFA
+skinparam noteBackgroundColor #FFFDE7
+skinparam noteBorderColor #BDBDBD
+skinparam sequenceGroupBorderColor #90A4AE
+skinparam sequenceGroupHeaderFontColor #37474F
+skinparam sequenceGroupBackgroundColor #ECEFF1
+
+actor "End user" as User
+participant "Camunda\nplaceOrder" as C #EDE7F6
+participant "transaction-service" as T #E3F2FD
+queue "Kafka" as K #FFF3E0
+participant "portfolio-service" as P #E8F5E9
+
+User -> C : submit order form
+C -> T : run placeOrderWorker
+T -> T : validate user against\nlocal confirmed-user read model
+T -> T : persist pending order\nand wait for price match
+
+K --> T : deliver price event
+
+alt Price matches before timeout
+  T -> C : correlate priceMatchedEvent
+  C -> T : run approveOrderWorker\n+ publishOrderApprovedWorker
+  T -> K : publish transaction.order.approved
+  K --> P : consume approved order
+  P -> P : upsert holding
+  C --> User : send execution email
+else No match before timeout
+  C --> User : send rejection email
+end
+
+@enduml

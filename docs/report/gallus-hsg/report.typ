@@ -1,5 +1,13 @@
 #import "@preview/gallus-hsg:1.0.1": *
 #import "./metadata.typ": *
+#import "@preview/codly:1.3.0": *
+#import "@preview/codly-languages:0.1.8": *
+
+#show: codly-init.with()
+#codly(
+  languages: codly-languages,
+  radius: 0.5em,
+)
 
 #set document(title: title, author: author)
 
@@ -16,8 +24,6 @@
   // acknowledgement: include "./content/acknowledgement.typ",
   writing-aids-directory: include "./content/writing-aids-directory.typ",
   // appendix: include "./content/appendix.typ",
-  bibliography-as-bytes: read("./bibliography.bib", encoding: none),
-  bibliography-style: "apa",
 )
 
 #include "./content/chapters/project-description.typ"
