@@ -5,9 +5,7 @@
 CryptoFlow is a crypto portfolio simulation platform that demonstrates event-driven and process-oriented architecture patterns in a distributed microservice environment. The system allows users to register, manage cryptocurrency portfolios, and place simulated trading orders. This, all coordinated through asynchronous event streams and orchestrated business processes.
 
 The Project release for this version of the reportcan be found on GitHub: 
-#TODO()[
-create a release when this is merged to main
-]
+
 https://github.com/cyrilgabriele/EDPO-Project-FS26
 
 == Domain and Goals <domain-and-goals>
