@@ -1,0 +1,13 @@
+@startuml 01-fx-rate-ingestion
+skinparam shadowing false
+skinparam defaultTextAlignment center
+
+cloud "exchangerate.host /latest\nHTTPS JSON · polled every 5 min" as api
+rectangle "<b>Event Filter</b>\nReject malformed responses\nor responses past their validity window" as filter
+rectangle "<b>Event Translator</b>\nFan out FxResponse → one FxRate per quote currency\nNormalize currency codes & units\nSet fetchedAt · validFromAt" as translator
+queue "reference.fx.rate\nFxRate · Avro · log-compacted\nkey = currency pair" as topic
+
+api --> filter
+filter --> translator
+translator --> topic
+@enduml

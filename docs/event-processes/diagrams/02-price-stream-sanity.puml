@@ -1,0 +1,13 @@
+@startuml 02-price-stream-sanity
+skinparam shadowing false
+skinparam defaultTextAlignment center
+
+queue "crypto.price.raw\nCryptoPriceUpdatedEvent · JSON" as src
+rectangle "<b>Event Filter</b>\nDrop ticks with price ≤ 0\nor stale / future timestamps" as filter
+rectangle "<b>Event Translator</b>\nCanonicalize symbol (BTCUSDT → BTC-USDT)\nRound price to tick size\nTag source venue\nStamp processedAt" as translator
+queue "crypto.price.clean\nCleanPriceTick · Avro" as sink
+
+src --> filter
+filter --> translator
+translator --> sink
+@enduml
