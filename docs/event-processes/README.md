@@ -15,6 +15,7 @@ Working specs for the stream-processing extensions to CryptoFlow, one file per s
 
 ## Proposals pending discussion
 
+- [market-data-topology-proposal.md](market-data-topology-proposal.md) — coherent topology proposal using existing market data to demonstrate stateless, stateful, and windowed processing.
 - [order-book-options.md](order-book-options.md) — order-book extension; closes the streaming-join gap.
 
 ## Coverage vs the required pattern list
