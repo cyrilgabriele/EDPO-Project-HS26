@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: market-partial-book-ingestion-service
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+server:
+  port: 8087
+
+binance:
+  partial-depth:
+    enabled: ${BINANCE_PARTIAL_DEPTH_ENABLED:true}
+    stream-url: ${BINANCE_PARTIAL_DEPTH_STREAM_URL:wss://fstream.binance.com/stream?streams=}
+    symbols: ${BINANCE_PARTIAL_DEPTH_SYMBOLS:BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,LTCUSDT}
+    depth: ${BINANCE_PARTIAL_DEPTH_LEVELS:20}
+    update-speed: ${BINANCE_PARTIAL_DEPTH_UPDATE_SPEED:100ms}
+
+crypto:
+  kafka:
+    topic:
+      scout-raw: crypto.scout.raw
+      scout-raw-partitions: 3
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

@@ -1,0 +1,84 @@
+{
+  "type": "record",
+  "name": "AskOpportunity",
+  "namespace": "ch.unisg.cryptoflow.marketscout.avro",
+  "fields": [
+    { "name": "symbol", "type": "string" },
+    {
+      "name": "price",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 38,
+        "scale": 18
+      }
+    },
+    {
+      "name": "quantity",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 38,
+        "scale": 18
+      }
+    },
+    {
+      "name": "threshold",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 38,
+        "scale": 18
+      }
+    },
+    {
+      "name": "bestAskPrice",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 38,
+        "scale": 18
+      }
+    },
+    {
+      "name": "bestAskQuantity",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 38,
+        "scale": 18
+      }
+    },
+    {
+      "name": "askNotional",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 38,
+        "scale": 18
+      }
+    },
+    {
+      "name": "transactionTime",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "eventTime",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    { "name": "sourceVenue", "type": "string" },
+    {
+      "name": "processedAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    }
+  ]
+}
