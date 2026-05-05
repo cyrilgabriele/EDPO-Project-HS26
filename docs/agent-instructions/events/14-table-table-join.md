@@ -27,6 +27,23 @@ supports foreign-key table joins where the join key differs between sides.
 - Anywhere you need the *current* combined state rather than a
   windowed event intersection
 
+## Operators
+
+`join`, `leftJoin`, and `outerJoin` are all available for table–table
+joins; semantics match SQL. The output table emits a change whenever
+either side changes.
+
+## Co-partitioning
+
+Equi-joins (same key on both sides) require co-partitioning: matching
+key serdes, partitioning strategy, and partition count.
+
+**Foreign-key joins** lift this requirement — Kafka Streams handles the
+necessary internal repartitioning so that the right side can be looked
+up by a foreign key extracted from the left value. The FK extractor has
+the signature `Function<V, KO>` (or a `BiFunction<K, V, KO>` overload),
+so the value carries the foreign key.
+
 ## Contrast with Streaming Join
 
 | Aspect        | Table–Table       | Streaming (Stream–Stream)   |
@@ -43,4 +60,4 @@ https://www.confluent.io/blog/data-enrichment-with-kafka-streams-foreign-key-joi
 
 ## Source
 
-Lecture 8, HSG ICS.
+Lectures 8 & 9, HSG ICS.

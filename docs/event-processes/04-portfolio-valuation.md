@@ -124,8 +124,10 @@ KTable<UserSymbol, Double> holdings = builder
     .groupBy((k, v) -> new UserSymbol(v.userId(), v.symbol()))
     .aggregate(() -> 0.0, (k, order, qty) -> qty + signedQty(order));
 
+// FK extractor needs access to the holdings KEY (symbol lives in the
+// composite key, not the value), so use the BiFunction<K, V, KO> overload.
 KTable<UserSymbol, Double> positionValue = holdings
-    .join(prices, UserSymbol::symbol, (qty, price) -> qty * price);
+    .join(prices, (us, qty) -> us.symbol(), (qty, price) -> qty * price);
 
 KTable<String, PortfolioValue> portfolio = positionValue
     .groupBy((us, v) -> KeyValue.pair(us.userId(), entry(us.symbol(), v)))

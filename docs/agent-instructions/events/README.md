@@ -1,7 +1,10 @@
 # Event-Driven & Process-Oriented Architectures — Reference Notes
 
-Reference notes derived from HSG ICS lectures 7–8 on event processing.
-Each file is a focused, standalone reference under 60 lines.
+Reference notes derived from HSG ICS lectures 7–9 on event processing.
+Each file is a focused, standalone reference. Lecture 9 (stateful
+processing) extends files 06, 11, 12, 13, 14, 15, and 18 with state
+stores, KTable / GlobalKTable, join operators, co-partitioning,
+grouping/aggregation, and materialized stores for interactive queries.
 
 ## Lecture 7 — Stream Processing: Intro & Key Concepts
 

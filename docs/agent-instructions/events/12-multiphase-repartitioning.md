@@ -34,6 +34,20 @@ Trades Topic    Processors (local)       Gain/lose     Processor        Top 10
 Key detail: the intermediate "gain/lose topic" has **1 partition** so the
 second aggregation sees all keys in one place.
 
+## Triggering Repartition: `selectKey`
+
+To make events with related data land in the same partition, change the
+key with `selectKey(...)`:
+
+```java
+scoreEvents.selectKey((k, v) -> v.getPlayerId().toString());
+```
+
+This is what physically triggers the data shuffle from phase 1 to phase 2.
+It is required for correctness when the existing key is wrong (or absent,
+e.g. round-robin produced events), but expensive — prefer `groupByKey`
+over `groupBy` when the key is already correct.
+
 ## Trade-offs
 
 - ✅ Enables global aggregates while keeping the first phase parallel
@@ -43,4 +57,4 @@ second aggregation sees all keys in one place.
 
 ## Source
 
-Lecture 8, HSG ICS.
+Lectures 8 & 9, HSG ICS.

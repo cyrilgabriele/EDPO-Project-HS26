@@ -43,6 +43,12 @@ joined event.
 - Matching orders with shipment acknowledgements
 - Detecting missing counterparts (stream-stream left join with null)
 
+## Co-partitioning
+
+KStream–KStream joins require co-partitioning: same keys, same
+partitioning strategy, same number of partitions. Use `selectKey(...)`
+to align keys when needed (this triggers a repartition).
+
 ## Trade-offs
 
 - ✅ Handles streams without requiring materialization
@@ -51,4 +57,4 @@ joined event.
 
 ## Source
 
-Lecture 8, HSG ICS.
+Lectures 8 & 9, HSG ICS.

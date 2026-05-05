@@ -1,7 +1,7 @@
 # Event Processing Design Patterns — Overview
 
-Catalog of stream processing design patterns covered in Lecture 8, grouped by
-the course project's requirement tiers.
+Catalog of stream processing design patterns covered in **Lectures 8–9**,
+grouped by the course project's requirement tiers.
 
 ## Minimal Requirements (covered in Week 8)
 
@@ -37,5 +37,5 @@ Covered in weeks 9–10:
 
 ## Source
 
-Lecture 8, HSG ICS. Patterns based on *Kafka — The Definitive Guide* and
+Lectures 8 & 9, HSG ICS. Patterns based on *Kafka — The Definitive Guide* and
 https://developer.confluent.io/patterns
