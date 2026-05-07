@@ -1,0 +1,43 @@
+{
+  "type": "record",
+  "name": "OrderMatched",
+  "namespace": "ch.unisg.cryptoflow.transaction.avro",
+  "fields": [
+    { "name": "transactionId", "type": "string" },
+    { "name": "askQuoteId", "type": "string" },
+    { "name": "symbol", "type": "string" },
+    {
+      "name": "matchedPrice",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 30,
+        "scale": 18
+      }
+    },
+    {
+      "name": "matchedQuantity",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 30,
+        "scale": 18
+      }
+    },
+    {
+      "name": "bidCreatedAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "askEventTime",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    { "name": "sourceVenue", "type": "string" }
+  ]
+}

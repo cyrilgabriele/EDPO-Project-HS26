@@ -64,7 +64,7 @@
       <bpmn:incoming>Flow_0ir4p4m</bpmn:incoming>
       <bpmn:outgoing>Flow_09kn552</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerEventDefinition_0acrukk">
-        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1M</bpmn:timeDuration>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT35S</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:intermediateCatchEvent>
     <bpmn:serviceTask id="Activity_order_rejected" name="Reject Order">
