@@ -22,6 +22,7 @@ crypto:
       scout-raw: crypto.scout.raw
       scout-derived-partitions: 3
       scout-ask-quotes: crypto.scout.ask-quotes
+      scout-matchable-asks: crypto.scout.matchable-asks
       scout-ask-opportunities: crypto.scout.ask-opportunities
       scout-window-summary: crypto.scout.window-summary
 

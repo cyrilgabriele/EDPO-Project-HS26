@@ -2,10 +2,11 @@ package ch.unisg.cryptoflow.marketscout.adapter.in.kafka;
 
 import ch.unisg.cryptoflow.events.OrderBookLevel;
 import ch.unisg.cryptoflow.events.RawOrderBookDepthEvent;
+import ch.unisg.cryptoflow.events.avro.MatchableAsk;
+import ch.unisg.cryptoflow.events.avro.SpecificAvroSerde;
 import ch.unisg.cryptoflow.marketscout.avro.AskOpportunity;
 import ch.unisg.cryptoflow.marketscout.avro.AskQuote;
 import ch.unisg.cryptoflow.marketscout.avro.ScoutWindowSummary;
-import ch.unisg.cryptoflow.marketscout.config.serde.SpecificAvroSerde;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KeyValue;
@@ -33,6 +34,7 @@ class MarketScoutTopologyTests {
 
     private static final String RAW_TOPIC = "crypto.scout.raw";
     private static final String ASK_QUOTE_TOPIC = "crypto.scout.ask-quotes";
+    private static final String MATCHABLE_ASK_TOPIC = "crypto.scout.matchable-asks";
     private static final String ASK_OPPORTUNITY_TOPIC = "crypto.scout.ask-opportunities";
     private static final String SUMMARY_TOPIC = "crypto.scout.window-summary";
     private static final Instant PROCESSED_AT = Instant.parse("2026-05-03T12:00:00Z");
@@ -45,6 +47,8 @@ class MarketScoutTopologyTests {
             new SpecificAvroSerde<>(AskOpportunity.class, AskOpportunity.getClassSchema());
     private final SpecificAvroSerde<ScoutWindowSummary> summarySerde =
             new SpecificAvroSerde<>(ScoutWindowSummary.class, ScoutWindowSummary.getClassSchema());
+    private final SpecificAvroSerde<MatchableAsk> matchableAskSerde =
+            new SpecificAvroSerde<>(MatchableAsk.class, MatchableAsk.getClassSchema());
 
     @Test
     void rawEventWithBidsAndAsksBecomesAskOnlyQuotes() {
@@ -63,18 +67,46 @@ class MarketScoutTopologyTests {
             KeyValue<String, AskQuote> firstQuote = quotes.readKeyValue();
             KeyValue<String, AskQuote> secondQuote = quotes.readKeyValue();
 
+            assertThat(firstQuote.value.getAskQuoteId()).endsWith("-ask-0");
             assertThat(firstQuote.value.getPrice()).isEqualByComparingTo("101.00");
             assertThat(firstQuote.value.getQuantity()).isEqualByComparingTo("1.25");
             assertThat(firstQuote.value.getBestAskPrice()).isEqualByComparingTo("101.00");
             assertThat(firstQuote.value.getBestAskQuantity()).isEqualByComparingTo("1.25");
             assertThat(firstQuote.value.getAskNotional()).isEqualByComparingTo("126.25");
 
+            assertThat(secondQuote.value.getAskQuoteId()).endsWith("-ask-1");
             assertThat(secondQuote.value.getPrice()).isEqualByComparingTo("102.00");
             assertThat(secondQuote.value.getQuantity()).isEqualByComparingTo("2.50");
             assertThat(secondQuote.value.getBestAskPrice()).isEqualByComparingTo("101.00");
             assertThat(secondQuote.value.getBestAskQuantity()).isEqualByComparingTo("1.25");
             assertThat(secondQuote.value.getAskNotional()).isEqualByComparingTo("255.00");
             assertThat(quotes.isEmpty()).isTrue();
+        }
+    }
+
+    @Test
+    void translatedAskQuotesAreAlsoPublishedAsMatchableAsks() {
+        try (TopologyTestDriver driver = testDriver(new BigDecimal("200.00"))) {
+            TestInputTopic<String, RawOrderBookDepthEvent> input = inputTopic(driver);
+            TestOutputTopic<String, MatchableAsk> matchableAsks = matchableAskOutput(driver);
+
+            Instant transactionTime = Instant.parse("2026-05-03T10:15:05Z");
+            input.pipeInput("ETHUSDT", rawEvent(
+                    "ETHUSDT",
+                    List.of(),
+                    List.of(new OrderBookLevel(new BigDecimal("150.00"), new BigDecimal("0.75"))),
+                    transactionTime));
+
+            KeyValue<String, MatchableAsk> translated = matchableAsks.readKeyValue();
+
+            assertThat(translated.key).isEqualTo("ETHUSDT");
+            assertThat(translated.value.getAskQuoteId()).endsWith("-ask-0");
+            assertThat(translated.value.getSymbol()).isEqualTo("ETHUSDT");
+            assertThat(translated.value.getAskPrice()).isEqualByComparingTo("150.00");
+            assertThat(translated.value.getAskQuantity()).isEqualByComparingTo("0.75");
+            assertThat(translated.value.getEventTime()).isEqualTo(transactionTime.minusMillis(5));
+            assertThat(translated.value.getSourceVenue()).isEqualTo("BINANCE_USD_M_FUTURES");
+            assertThat(matchableAsks.isEmpty()).isTrue();
         }
     }
 
@@ -123,12 +155,14 @@ class MarketScoutTopologyTests {
             AskOpportunity firstOpportunity = opportunities.readValue();
             AskOpportunity secondOpportunity = opportunities.readValue();
 
+            assertThat(firstOpportunity.getAskQuoteId()).endsWith("-ask-0");
             assertThat(firstOpportunity.getPrice()).isEqualByComparingTo("99.99");
             assertThat(firstOpportunity.getQuantity()).isEqualByComparingTo("1.00");
             assertThat(firstOpportunity.getBestAskPrice()).isEqualByComparingTo("99.99");
             assertThat(firstOpportunity.getBestAskQuantity()).isEqualByComparingTo("1.00");
             assertThat(firstOpportunity.getAskNotional()).isEqualByComparingTo("99.99");
 
+            assertThat(secondOpportunity.getAskQuoteId()).endsWith("-ask-1");
             assertThat(secondOpportunity.getPrice()).isEqualByComparingTo("100.00");
             assertThat(secondOpportunity.getQuantity()).isEqualByComparingTo("2.00");
             assertThat(secondOpportunity.getBestAskPrice()).isEqualByComparingTo("99.99");
@@ -226,6 +260,7 @@ class MarketScoutTopologyTests {
         MarketScoutTopology.build(builder, new MarketScoutTopologyProperties(
                 RAW_TOPIC,
                 ASK_QUOTE_TOPIC,
+                MATCHABLE_ASK_TOPIC,
                 ASK_OPPORTUNITY_TOPIC,
                 SUMMARY_TOPIC,
                 threshold,
@@ -253,6 +288,13 @@ class MarketScoutTopologyTests {
                 ASK_OPPORTUNITY_TOPIC,
                 keySerde.deserializer(),
                 askOpportunitySerde.deserializer());
+    }
+
+    private TestOutputTopic<String, MatchableAsk> matchableAskOutput(TopologyTestDriver driver) {
+        return driver.createOutputTopic(
+                MATCHABLE_ASK_TOPIC,
+                keySerde.deserializer(),
+                matchableAskSerde.deserializer());
     }
 
     private TestOutputTopic<String, ScoutWindowSummary> summaryOutput(TopologyTestDriver driver) {

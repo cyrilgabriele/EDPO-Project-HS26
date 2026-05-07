@@ -40,8 +40,16 @@ crypto:
     topic:
       price-raw: crypto.price.raw
       price-raw-dlt: crypto.price.raw.DLT
+      buy-bids: transaction.buy-bids
+      order-matched: transaction.order-matched
+      matchable-asks: crypto.scout.matchable-asks
       order-approved: transaction.order.approved
       user-confirmed: user.confirmed
+  transaction-matching:
+    topology:
+      enabled: ${TRANSACTION_MATCHING_TOPOLOGY_ENABLED:true}
+    validity-window: ${TRANSACTION_MATCHING_VALIDITY_WINDOW:30s}
+    grace-period: ${TRANSACTION_MATCHING_GRACE_PERIOD:5s}
 
 management:
   endpoints:

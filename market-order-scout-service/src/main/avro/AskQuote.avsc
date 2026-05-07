@@ -3,6 +3,7 @@
   "name": "AskQuote",
   "namespace": "ch.unisg.cryptoflow.marketscout.avro",
   "fields": [
+    { "name": "askQuoteId", "type": "string" },
     { "name": "symbol", "type": "string" },
     {
       "name": "price",

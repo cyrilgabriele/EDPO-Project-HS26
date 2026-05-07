@@ -2,10 +2,11 @@ package ch.unisg.cryptoflow.marketscout.adapter.in.kafka;
 
 import ch.unisg.cryptoflow.events.OrderBookLevel;
 import ch.unisg.cryptoflow.events.RawOrderBookDepthEvent;
+import ch.unisg.cryptoflow.events.avro.MatchableAsk;
+import ch.unisg.cryptoflow.events.avro.SpecificAvroSerde;
 import ch.unisg.cryptoflow.marketscout.avro.AskOpportunity;
 import ch.unisg.cryptoflow.marketscout.avro.AskQuote;
 import ch.unisg.cryptoflow.marketscout.avro.ScoutWindowSummary;
-import ch.unisg.cryptoflow.marketscout.config.serde.SpecificAvroSerde;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.StreamsBuilder;
@@ -45,6 +46,8 @@ public final class MarketScoutTopology {
                 new SpecificAvroSerde<>(AskOpportunity.class, AskOpportunity.getClassSchema());
         SpecificAvroSerde<ScoutWindowSummary> scoutSummarySerde =
                 new SpecificAvroSerde<>(ScoutWindowSummary.class, ScoutWindowSummary.getClassSchema());
+        SpecificAvroSerde<MatchableAsk> matchableAskSerde =
+                new SpecificAvroSerde<>(MatchableAsk.class, MatchableAsk.getClassSchema());
 
         KStream<String, RawOrderBookDepthEvent> rawEvents = builder.stream(
                 properties.rawTopic(),
@@ -59,6 +62,10 @@ public final class MarketScoutTopology {
                 .flatMapValues(event -> toAskQuotes(event, properties.sourceVenue(), clock.instant()));
 
         askQuotes.to(properties.askQuoteTopic(), Produced.with(keySerde, askQuoteSerde));
+
+        askQuotes
+                .mapValues(MarketScoutTopology::toMatchableAsk)
+                .to(properties.matchableAskTopic(), Produced.with(keySerde, matchableAskSerde));
 
         KStream<String, AskOpportunity> askOpportunities = askQuotes
                 .filter((key, quote) -> quote.getPrice().compareTo(properties.askThreshold()) <= 0)
@@ -88,7 +95,8 @@ public final class MarketScoutTopology {
         }
 
         List<AskQuote> quotes = new ArrayList<>();
-        for (OrderBookLevel ask : event.asks()) {
+        for (int askLevelIndex = 0; askLevelIndex < event.asks().size(); askLevelIndex++) {
+            OrderBookLevel ask = event.asks().get(askLevelIndex);
             if (ask == null || ask.price() == null || ask.quantity() == null) {
                 continue;
             }
@@ -96,6 +104,7 @@ public final class MarketScoutTopology {
             BigDecimal price = normalize(ask.price());
             BigDecimal quantity = normalize(ask.quantity());
             quotes.add(AskQuote.newBuilder()
+                    .setAskQuoteId(askQuoteId(event, askLevelIndex))
                     .setSymbol(event.symbol())
                     .setPrice(price)
                     .setQuantity(quantity)
@@ -113,6 +122,7 @@ public final class MarketScoutTopology {
 
     private static AskOpportunity toAskOpportunity(AskQuote quote, BigDecimal threshold) {
         return AskOpportunity.newBuilder()
+                .setAskQuoteId(quote.getAskQuoteId())
                 .setSymbol(quote.getSymbol())
                 .setPrice(quote.getPrice())
                 .setQuantity(quote.getQuantity())
@@ -124,6 +134,17 @@ public final class MarketScoutTopology {
                 .setEventTime(quote.getEventTime())
                 .setSourceVenue(quote.getSourceVenue())
                 .setProcessedAt(quote.getProcessedAt())
+                .build();
+    }
+
+    private static MatchableAsk toMatchableAsk(AskQuote quote) {
+        return MatchableAsk.newBuilder()
+                .setAskQuoteId(quote.getAskQuoteId())
+                .setSymbol(quote.getSymbol())
+                .setAskPrice(quote.getPrice())
+                .setAskQuantity(quote.getQuantity())
+                .setEventTime(quote.getEventTime())
+                .setSourceVenue(quote.getSourceVenue())
                 .build();
     }
 
@@ -183,6 +204,13 @@ public final class MarketScoutTopology {
 
     private static Instant nonNullInstant(Instant instant) {
         return instant == null ? Instant.EPOCH : instant;
+    }
+
+    private static String askQuoteId(RawOrderBookDepthEvent event, int askLevelIndex) {
+        String eventIdentity = event.eventId() == null || event.eventId().isBlank()
+                ? event.symbol() + "-" + event.eventTime() + "-" + event.firstUpdateId() + "-" + event.finalUpdateId()
+                : event.eventId();
+        return eventIdentity + "-ask-" + askLevelIndex;
     }
 
     private record AskContext(BigDecimal bestAskPrice, BigDecimal bestAskQuantity) {

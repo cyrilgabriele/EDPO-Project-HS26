@@ -24,6 +24,8 @@ Compute the new fields statelessly from the validated ask side of each raw parti
 - `bestAskQuantity`: quantity from the first valid ask level.
 - `askNotional`: `ask.price * ask.quantity` for each flattened ask quote.
 
+`bestAskPrice` and `bestAskQuantity` describe the best ask in the same raw order-book snapshot as the flattened ask quote. They are not a rolling or windowed aggregate.
+
 Copy these derived fields from `AskQuote` to `AskOpportunity` when an ask quote passes the opportunity filter.
 
 Bid-side fields are intentionally excluded from the derived Market Scout contracts. The current Market Scout stream models ask quotes and ask opportunities, and adding bid-dependent metrics would couple those ask-focused events to data they do not otherwise need.

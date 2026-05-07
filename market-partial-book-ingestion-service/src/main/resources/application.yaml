@@ -22,7 +22,7 @@ binance:
     stream-url: ${BINANCE_PARTIAL_DEPTH_STREAM_URL:wss://fstream.binance.com/stream?streams=}
     symbols: ${BINANCE_PARTIAL_DEPTH_SYMBOLS:BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,LTCUSDT}
     depth: ${BINANCE_PARTIAL_DEPTH_LEVELS:20}
-    update-speed: ${BINANCE_PARTIAL_DEPTH_UPDATE_SPEED:100ms}
+    update-speed: ${BINANCE_PARTIAL_DEPTH_UPDATE_SPEED:250ms}
 
 crypto:
   kafka:

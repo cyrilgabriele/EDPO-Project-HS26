@@ -147,7 +147,7 @@
 </header>
 
 <p class="notice">
-  Place orders via Camunda Operate → <strong>placeOrder.bpmn</strong>. Orders sit <strong>PENDING</strong> until a live Binance price matches the target, then move to <strong>APPROVED</strong> through the Zeebe workflow. The outbox row is written atomically with the status update and published to Kafka by the scheduler.
+  Place orders via Camunda Operate → <strong>placeOrder.bpmn</strong>. Orders sit <strong>PENDING</strong> until a matchable ask satisfies the buy bid, then move to <strong>APPROVED</strong> through the Zeebe workflow. The outbox row is written atomically with the status update and published to Kafka by the scheduler.
 </p>
 
 <main>

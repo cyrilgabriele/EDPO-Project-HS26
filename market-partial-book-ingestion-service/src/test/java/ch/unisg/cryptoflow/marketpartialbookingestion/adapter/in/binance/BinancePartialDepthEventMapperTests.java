@@ -16,7 +16,7 @@ class BinancePartialDepthEventMapperTests {
     void mapsCombinedStreamPayloadToRawOrderBookDepthEvent() throws Exception {
         RawOrderBookDepthEvent event = mapper.map("""
                 {
-                  "stream": "btcusdt@depth20@100ms",
+                  "stream": "btcusdt@depth20@250ms",
                   "data": {
                     "e": "depthUpdate",
                     "E": 1777803305000,

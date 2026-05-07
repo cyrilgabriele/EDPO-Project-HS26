@@ -47,6 +47,7 @@ public class MarketScoutStreamsConfig {
     public MarketScoutTopologyProperties marketScoutTopologyProperties(
             @Value("${crypto.kafka.topic.scout-raw}") String rawTopic,
             @Value("${crypto.kafka.topic.scout-ask-quotes}") String askQuoteTopic,
+            @Value("${crypto.kafka.topic.scout-matchable-asks}") String matchableAskTopic,
             @Value("${crypto.kafka.topic.scout-ask-opportunities}") String askOpportunityTopic,
             @Value("${crypto.kafka.topic.scout-window-summary}") String scoutSummaryTopic,
             @Value("${crypto.market-scout.ask-threshold}") BigDecimal askThreshold,
@@ -55,6 +56,7 @@ public class MarketScoutStreamsConfig {
         return new MarketScoutTopologyProperties(
                 rawTopic,
                 askQuoteTopic,
+                matchableAskTopic,
                 askOpportunityTopic,
                 scoutSummaryTopic,
                 askThreshold,

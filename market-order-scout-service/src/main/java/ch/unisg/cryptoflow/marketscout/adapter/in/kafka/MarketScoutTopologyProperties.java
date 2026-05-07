@@ -6,6 +6,7 @@ import java.time.Duration;
 public record MarketScoutTopologyProperties(
         String rawTopic,
         String askQuoteTopic,
+        String matchableAskTopic,
         String askOpportunityTopic,
         String scoutSummaryTopic,
         BigDecimal askThreshold,

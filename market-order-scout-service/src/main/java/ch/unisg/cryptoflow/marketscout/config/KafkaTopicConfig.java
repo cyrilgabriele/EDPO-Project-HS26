@@ -33,6 +33,16 @@ public class KafkaTopicConfig {
     }
 
     @Bean
+    public NewTopic cryptoScoutMatchableAskTopic(
+            @Value("${crypto.kafka.topic.scout-matchable-asks}") String name,
+            @Value("${crypto.kafka.topic.scout-derived-partitions:3}") int partitions) {
+        return TopicBuilder.name(name)
+                .partitions(partitions)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
     public NewTopic cryptoScoutWindowSummaryTopic(
             @Value("${crypto.kafka.topic.scout-window-summary}") String name,
             @Value("${crypto.kafka.topic.scout-derived-partitions:3}") int partitions) {
