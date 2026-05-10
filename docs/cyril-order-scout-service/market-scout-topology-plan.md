@@ -12,11 +12,22 @@ Full local order-book reconstruction is intentionally deferred. ADR-0021 records
 
 ## Implemented Topology
 
-`crypto.scout.raw -> ask-side content filter -> translator -> threshold filter -> windowed aggregate`
+```text
+crypto.scout.raw
+  -> ask-side content filter
+  -> translator
+  -> crypto.scout.ask-quotes
+  -> crypto.scout.matchable-asks
+  -> threshold filter
+  -> crypto.scout.ask-opportunities
+  -> windowed aggregate
+  -> crypto.scout.window-summary
+```
 
 The implemented derived topics are:
 
 - `crypto.scout.ask-quotes`
+- `crypto.scout.matchable-asks`
 - `crypto.scout.ask-opportunities`
 - `crypto.scout.window-summary`
 
@@ -40,13 +51,22 @@ The implemented derived topics are:
 - Emit **Ask Opportunity** events only when `ask.price <= threshold`.
 - Document that opportunities are only within the configured top-20 visible depth.
 
-### 4. Avro Boundary
+### 4. Matchable Ask Contract
+
+- Translate every `AskQuote` into a `MatchableAsk` for `transaction-service`.
+- Publish the stream to `crypto.scout.matchable-asks`.
+- Keep this stream independent from the threshold filter so bid matching uses
+  the current ask book levels, not only scout opportunities.
+- Use symbol keys so `transaction-service` can align bids and asks by trading
+  symbol in its own Kafka Streams topology.
+
+### 5. Avro Boundary
 
 - Introduce Avro schemas for derived scout events, not for the existing raw JSON event.
 - Keep `crypto.scout.raw` JSON initially to stay aligned with ADR-0003.
 - Use Avro for the translated and output topics to satisfy the stream-processing requirement.
 
-### 5. Windowed Operation
+### 6. Windowed Operation
 
 - Add a time-windowed aggregate over ask opportunities.
 - Use transaction time as event time.
@@ -66,5 +86,6 @@ The topology test suite covers:
 - raw event with bids and asks becomes ask-only content event
 - ask levels flatten into individual translated quote events
 - threshold keeps only quotes at or below configured price
+- every ask quote is also emitted as a matchable ask for transaction matching
 - windowed aggregate groups by symbol and event-time window
 - malformed or empty ask lists are ignored without killing stream processing

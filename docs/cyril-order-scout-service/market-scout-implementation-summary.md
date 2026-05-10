@@ -15,13 +15,21 @@ This summary records the documentation and implementation work completed for `ma
 
 ## Stream Topology Implemented
 
-The implemented topology is:
+The implemented scout topology is:
 
 ```text
-crypto.scout.raw -> ask-side content filter -> translator -> threshold filter -> windowed aggregate
+crypto.scout.raw
+  -> ask-side content filter
+  -> translator
+  -> crypto.scout.ask-quotes
+  -> crypto.scout.matchable-asks
+  -> threshold filter
+  -> crypto.scout.ask-opportunities
+  -> windowed aggregate
+  -> crypto.scout.window-summary
 ```
 
-The service now consumes complete raw partial-depth events from `crypto.scout.raw`, keeps the raw topic replayable, and derives ask-side stream events without mutating the raw event contract.
+The service now consumes complete raw partial-depth events from `crypto.scout.raw`, keeps the raw topic replayable, derives ask-side stream events without mutating the raw event contract, and publishes a cross-service `MatchableAsk` stream for transaction matching.
 
 ## Main Code Changes
 
@@ -32,10 +40,12 @@ The service now consumes complete raw partial-depth events from `crypto.scout.ra
 - Added `MarketScoutStreamsConfig` to wire Kafka Streams through Spring Boot.
 - Added derived Kafka topics:
   - `crypto.scout.ask-quotes`
+  - `crypto.scout.matchable-asks`
   - `crypto.scout.ask-opportunities`
   - `crypto.scout.window-summary`
 - Added Avro schemas for derived scout events:
   - `AskQuote`
+  - `MatchableAsk`
   - `AskOpportunity`
   - `ScoutWindowSummary`
 - Added a small registryless `SpecificAvroSerde` for generated Avro `SpecificRecord` types.
@@ -45,6 +55,7 @@ The service now consumes complete raw partial-depth events from `crypto.scout.ra
 
 - The ask-side content filter ignores null, malformed, or empty ask lists.
 - The translator flattens each ask level into one `AskQuote`.
+- Each `AskQuote` is translated into one `MatchableAsk` and published to `crypto.scout.matchable-asks`.
 - Topic keys remain the trading symbol to preserve per-symbol ordering.
 - The threshold filter emits an `AskOpportunity` only when `ask.price <= configured threshold`.
 - Opportunities are limited to the configured top-20 visible partial-depth stream.
@@ -59,6 +70,7 @@ The service now consumes complete raw partial-depth events from `crypto.scout.ra
 - `crypto.market-scout.source-venue`
 - `crypto.kafka.topic.scout-derived-partitions`
 - `crypto.kafka.topic.scout-ask-quotes`
+- `crypto.kafka.topic.scout-matchable-asks`
 - `crypto.kafka.topic.scout-ask-opportunities`
 - `crypto.kafka.topic.scout-window-summary`
 
@@ -70,6 +82,7 @@ Added Kafka Streams topology tests covering:
 
 - raw events with bids and asks become ask-only quote events
 - ask levels flatten into individual translated quote events
+- ask quotes are emitted as matchable asks for `transaction-service`
 - threshold filtering keeps only quotes at or below the configured price
 - windowed aggregation groups by symbol and event-time window
 - malformed or empty ask lists are ignored without killing stream processing

@@ -12,6 +12,8 @@ Binance USD-M partial-depth WebSocket
   -> market-order-scout-service Kafka Streams topology
   -> AskQuote as Avro
   -> crypto.scout.ask-quotes
+  -> MatchableAsk as Avro
+  -> crypto.scout.matchable-asks
   -> threshold filter: ask price <= MARKET_SCOUT_ASK_THRESHOLD
   -> AskOpportunity as Avro
   -> crypto.scout.ask-opportunities
@@ -42,7 +44,14 @@ binance:
   partial-depth:
     symbols: ${BINANCE_PARTIAL_DEPTH_SYMBOLS:BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,LTCUSDT}
     depth: ${BINANCE_PARTIAL_DEPTH_LEVELS:20}
-    update-speed: ${BINANCE_PARTIAL_DEPTH_UPDATE_SPEED:100ms}
+    update-speed: ${BINANCE_PARTIAL_DEPTH_UPDATE_SPEED:250ms}
+```
+
+When the service is started through `docker/docker-compose.yml`, Compose
+currently overrides the same environment variable with a `500ms` default:
+
+```yaml
+BINANCE_PARTIAL_DEPTH_UPDATE_SPEED: ${BINANCE_PARTIAL_DEPTH_UPDATE_SPEED:-500ms}
 ```
 
 The WebSocket subscription URL is assembled in:
@@ -51,12 +60,12 @@ The WebSocket subscription URL is assembled in:
 market-partial-book-ingestion-service/src/main/java/ch/unisg/cryptoflow/marketpartialbookingestion/adapter/in/binance/BinancePartialDepthWebSocketClient.java
 ```
 
-For each symbol it builds a Binance stream name like:
+With the application default, each symbol builds a Binance stream name like:
 
 ```text
-btcusdt@depth20@100ms
-ethusdt@depth20@100ms
-ltcusdt@depth20@100ms
+btcusdt@depth20@250ms
+ethusdt@depth20@250ms
+ltcusdt@depth20@250ms
 ```
 
 When a WebSocket text message arrives, the client maps the payload and publishes the resulting raw event to Kafka.
@@ -215,7 +224,28 @@ crypto.scout.ask-quotes
 
 This is a derived topic and uses binary Avro serialization.
 
-## 7. Ask Threshold Filter
+## 7. Matchable Ask Derivation
+
+Every `AskQuote` is also translated into the cross-service `MatchableAsk` contract:
+
+- ask quote id
+- symbol
+- ask price
+- ask quantity
+- exchange event time
+- source venue
+
+The resulting stream is written to:
+
+```text
+crypto.scout.matchable-asks
+```
+
+This topic is independent from the scout threshold. It contains ask levels that
+can be considered by `transaction-service` for bid matching, even when the ask
+would not be counted as an `AskOpportunity`.
+
+## 8. Ask Threshold Filter
 
 The ask threshold is defined in:
 
@@ -277,7 +307,7 @@ crypto.scout.ask-opportunities
 
 This topic also uses binary Avro serialization.
 
-## 8. Window Summary Aggregation
+## 9. Window Summary Aggregation
 
 The opportunity stream is grouped by Kafka key, which is still the symbol:
 
@@ -320,7 +350,7 @@ crypto.scout.window-summary
 
 This topic uses binary Avro serialization.
 
-## 9. Derived Topic Creation
+## 10. Derived Topic Creation
 
 The derived topics are created in:
 
@@ -336,13 +366,50 @@ crypto:
     topic:
       scout-derived-partitions: 3
       scout-ask-quotes: crypto.scout.ask-quotes
+      scout-matchable-asks: crypto.scout.matchable-asks
       scout-ask-opportunities: crypto.scout.ask-opportunities
       scout-window-summary: crypto.scout.window-summary
 ```
 
 Because the topology keeps the symbol as the Kafka key, derived records should follow the same symbol-based partition placement as the raw records, assuming the topic partition count is the same.
 
-## 10. Serialization In Kafka UI
+## 11. Transaction Matching Consumer
+
+`transaction-service` consumes `crypto.scout.matchable-asks` in its own Kafka
+Streams topology. That topology also consumes `transaction.buy-bids`, the topic
+written by `PlaceOrderWorker` after a Camunda order form is validated and stored
+as a pending transaction.
+
+The matching topology is:
+
+```text
+transaction.buy-bids
+crypto.scout.matchable-asks
+  -> transaction-service Kafka Streams matcher
+  -> transaction.order-matched
+  -> OrderMatchedEventConsumer
+  -> Zeebe message priceMatchedEvent correlated by transactionId
+```
+
+The matcher is not a symmetric stream-stream join. It stores pending buy bids by
+symbol and tries to allocate a newly arriving `MatchableAsk` to one pending bid.
+If a match is produced, the ask quote id and transaction id are recorded in
+state stores so the same ask or transaction is not allocated twice.
+
+Current eligibility rules:
+
+```text
+ask.eventTime >= bid.createdAt
+ask.eventTime <= bid.createdAt + TRANSACTION_MATCHING_VALIDITY_WINDOW
+bid.bidPrice >= ask.askPrice
+bid.bidQuantity <= ask.askQuantity
+```
+
+The default validity window is `30s`, with a `5s` grace period. The BPMN process
+uses a `35s` rejection timer so the workflow can wait for the stream match and
+still reject orders that do not match.
+
+## 12. Serialization In Kafka UI
 
 The raw topic is JSON:
 
@@ -356,9 +423,9 @@ The derived topics are binary Avro:
 
 ```text
 crypto.scout.ask-quotes
+crypto.scout.matchable-asks
 crypto.scout.ask-opportunities
 crypto.scout.window-summary
 ```
 
 Kafka UI may show unreadable bytes for those values unless it is configured with the matching Avro schema or a custom decoder. Seeing a readable key like `LTCUSDT` and an unreadable binary value on a derived topic is expected.
-

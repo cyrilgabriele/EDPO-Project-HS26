@@ -11,7 +11,7 @@ Split the previous combined Market Scout service into two services:
 
 The upstream service owns the Binance USD-M Futures Partial Book Depth WebSocket subscription and publishes complete raw order-book depth events to `crypto.scout.raw`.
 
-The downstream service owns the Market Order Scout Kafka Streams topology and consumes `crypto.scout.raw` to derive ask quotes, ask opportunities, and window summaries.
+The downstream service owns the Market Order Scout Kafka Streams topology and consumes `crypto.scout.raw` to derive ask quotes, matchable asks, ask opportunities, and window summaries.
 
 ## Target Architecture
 
@@ -21,6 +21,7 @@ Binance USD-M Futures Partial Book Depth Stream
   -> crypto.scout.raw
   -> market-order-scout-service
   -> crypto.scout.ask-quotes
+  -> crypto.scout.matchable-asks
   -> crypto.scout.ask-opportunities
   -> crypto.scout.window-summary
 ```
@@ -41,15 +42,25 @@ Binance USD-M Futures Partial Book Depth Stream
 - Preserve the implemented topology:
 
 ```text
-crypto.scout.raw -> ask-side content filter -> translator -> threshold filter -> windowed aggregate
+crypto.scout.raw
+  -> ask-side content filter
+  -> translator
+  -> crypto.scout.ask-quotes
+  -> crypto.scout.matchable-asks
+  -> threshold filter
+  -> crypto.scout.ask-opportunities
+  -> windowed aggregate
+  -> crypto.scout.window-summary
 ```
 
 - Produce derived Avro events to:
   - `crypto.scout.ask-quotes`
+  - `crypto.scout.matchable-asks`
   - `crypto.scout.ask-opportunities`
   - `crypto.scout.window-summary`
 - Own scout-specific configuration such as ask threshold, summary window size, source venue, and derived topic names.
 - Use transaction time as Kafka Streams event time, with the existing fallback behavior.
+- Publish `MatchableAsk` events for `transaction-service`; transaction matching itself remains owned by `transaction-service`.
 
 ## Implementation Steps
 
@@ -72,7 +83,7 @@ crypto.scout.raw -> ask-side content filter -> translator -> threshold filter ->
 mvn test -pl market-partial-book-ingestion-service,market-order-scout-service -am
 ```
 
-- In Docker Compose, verify that `market-partial-book-ingestion-service` produces `crypto.scout.raw` and `market-order-scout-service` independently produces the three derived scout topics.
+- In Docker Compose, verify that `market-partial-book-ingestion-service` produces `crypto.scout.raw` and `market-order-scout-service` independently produces the four derived scout topics.
 
 ## Assumptions
 
@@ -80,3 +91,4 @@ mvn test -pl market-partial-book-ingestion-service,market-order-scout-service -a
 - The raw topic payload remains JSON, aligned with ADR-0003 and ADR-0022.
 - Derived Market Scout events remain Avro without Schema Registry for the current project scope.
 - The split is a service-boundary change only; the Market Scout topology behavior should not change.
+- `transaction-service` consumes `crypto.scout.matchable-asks` as the matching boundary; it does not consume raw scout events or ask opportunities.
