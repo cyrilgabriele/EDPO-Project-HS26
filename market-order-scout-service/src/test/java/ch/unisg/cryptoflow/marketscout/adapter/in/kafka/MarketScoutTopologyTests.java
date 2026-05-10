@@ -7,6 +7,7 @@ import ch.unisg.cryptoflow.events.avro.SpecificAvroSerde;
 import ch.unisg.cryptoflow.marketscout.avro.AskOpportunity;
 import ch.unisg.cryptoflow.marketscout.avro.AskQuote;
 import ch.unisg.cryptoflow.marketscout.avro.ScoutWindowSummary;
+import ch.unisg.cryptoflow.marketscout.domain.ScoutDashboardStats;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KeyValue;
@@ -15,6 +16,7 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.TestInputTopic;
 import org.apache.kafka.streams.TestOutputTopic;
 import org.apache.kafka.streams.TopologyTestDriver;
+import org.apache.kafka.streams.state.KeyValueStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.support.serializer.JsonSerde;
 
@@ -29,6 +31,7 @@ import java.util.Properties;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 class MarketScoutTopologyTests {
 
@@ -202,6 +205,54 @@ class MarketScoutTopologyTests {
     }
 
     @Test
+    void dashboardStatsStoreKeepsLatestSummaryWindowsPerSymbol() {
+        try (TopologyTestDriver driver = testDriver(new BigDecimal("1000000.00"))) {
+            TestInputTopic<String, RawOrderBookDepthEvent> input = inputTopic(driver);
+
+            for (int i = 0; i < 52; i++) {
+                input.pipeInput("BTCUSDT", rawEvent(
+                        "BTCUSDT",
+                        List.of(),
+                        List.of(new OrderBookLevel(new BigDecimal("100").add(BigDecimal.valueOf(i)), BigDecimal.ONE)),
+                        Instant.parse("2026-05-03T10:00:00Z").plusSeconds(i * 30L)));
+            }
+
+            ScoutDashboardStats stats = dashboardStatsStore(driver).get("BTCUSDT");
+
+            assertThat(stats.count()).isEqualTo(50);
+            assertThat(stats.samples()).hasSize(50);
+            assertThat(stats.samples().getFirst().windowStart()).isEqualTo(Instant.parse("2026-05-03T10:01:00Z"));
+            assertThat(stats.samples().getLast().windowStart()).isEqualTo(Instant.parse("2026-05-03T10:25:30Z"));
+        }
+    }
+
+    @Test
+    void dashboardStatsStoreReplacesRepeatedUpdatesForSameSummaryWindow() {
+        try (TopologyTestDriver driver = testDriver(new BigDecimal("1000000.00"))) {
+            TestInputTopic<String, RawOrderBookDepthEvent> input = inputTopic(driver);
+            Instant transactionTime = Instant.parse("2026-05-03T10:15:05Z");
+
+            input.pipeInput("BTCUSDT", rawEvent(
+                    "BTCUSDT",
+                    List.of(),
+                    List.of(new OrderBookLevel(new BigDecimal("100.00"), BigDecimal.ONE)),
+                    transactionTime));
+            input.pipeInput("BTCUSDT", rawEvent(
+                    "BTCUSDT",
+                    List.of(),
+                    List.of(new OrderBookLevel(new BigDecimal("99.00"), BigDecimal.ONE)),
+                    transactionTime.plusSeconds(1)));
+
+            ScoutDashboardStats stats = dashboardStatsStore(driver).get("BTCUSDT");
+
+            assertThat(stats.count()).isEqualTo(1);
+            assertThat(stats.samples()).hasSize(1);
+            assertThat(stats.samples().getFirst().logMinAskPrice()).isCloseTo(Math.log(99.0), within(0.000000001));
+            assertThat(stats.histogramBins()).hasSize(1);
+        }
+    }
+
+    @Test
     void emptyOrMalformedAskListsAreIgnoredWithoutKillingStreamProcessing() {
         try (TopologyTestDriver driver = testDriver(new BigDecimal("100.00"))) {
             TestInputTopic<String, RawOrderBookDepthEvent> input = inputTopic(driver);
@@ -299,6 +350,10 @@ class MarketScoutTopologyTests {
 
     private TestOutputTopic<String, ScoutWindowSummary> summaryOutput(TopologyTestDriver driver) {
         return driver.createOutputTopic(SUMMARY_TOPIC, keySerde.deserializer(), summarySerde.deserializer());
+    }
+
+    private KeyValueStore<String, ScoutDashboardStats> dashboardStatsStore(TopologyTestDriver driver) {
+        return driver.getKeyValueStore(MarketScoutTopology.DASHBOARD_STATS_STORE);
     }
 
     private RawOrderBookDepthEvent rawEvent(

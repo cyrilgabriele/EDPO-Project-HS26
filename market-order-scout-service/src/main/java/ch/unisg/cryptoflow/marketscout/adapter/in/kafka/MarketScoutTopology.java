@@ -7,8 +7,10 @@ import ch.unisg.cryptoflow.events.avro.SpecificAvroSerde;
 import ch.unisg.cryptoflow.marketscout.avro.AskOpportunity;
 import ch.unisg.cryptoflow.marketscout.avro.AskQuote;
 import ch.unisg.cryptoflow.marketscout.avro.ScoutWindowSummary;
+import ch.unisg.cryptoflow.marketscout.domain.ScoutDashboardStats;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.Grouped;
@@ -17,6 +19,7 @@ import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.kstream.TimeWindows;
 import org.apache.kafka.streams.kstream.Windowed;
+import org.apache.kafka.streams.state.KeyValueStore;
 import org.springframework.kafka.support.serializer.JsonSerde;
 
 import java.math.BigDecimal;
@@ -28,6 +31,7 @@ import java.util.List;
 
 public final class MarketScoutTopology {
 
+    public static final String DASHBOARD_STATS_STORE = "market-scout-dashboard-stats";
     private static final int DECIMAL_SCALE = 18;
 
     private MarketScoutTopology() {
@@ -48,6 +52,8 @@ public final class MarketScoutTopology {
                 new SpecificAvroSerde<>(ScoutWindowSummary.class, ScoutWindowSummary.getClassSchema());
         SpecificAvroSerde<MatchableAsk> matchableAskSerde =
                 new SpecificAvroSerde<>(MatchableAsk.class, MatchableAsk.getClassSchema());
+        JsonSerde<ScoutDashboardStats> dashboardStatsSerde = new JsonSerde<>(ScoutDashboardStats.class);
+        dashboardStatsSerde.noTypeInfo();
 
         KStream<String, RawOrderBookDepthEvent> rawEvents = builder.stream(
                 properties.rawTopic(),
@@ -73,7 +79,7 @@ public final class MarketScoutTopology {
 
         askOpportunities.to(properties.askOpportunityTopic(), Produced.with(keySerde, askOpportunitySerde));
 
-        askOpportunities
+        KStream<String, ScoutWindowSummary> summaries = askOpportunities
                 .groupByKey(Grouped.with(keySerde, askOpportunitySerde))
                 .windowedBy(TimeWindows.ofSizeWithNoGrace(properties.summaryWindow()))
                 .aggregate(
@@ -82,8 +88,18 @@ public final class MarketScoutTopology {
                         Materialized.with(keySerde, scoutSummarySerde))
                 .toStream()
                 .mapValues(MarketScoutTopology::withWindowBounds)
-                .selectKey((windowedSymbol, summary) -> windowedSymbol.key())
-                .to(properties.scoutSummaryTopic(), Produced.with(keySerde, scoutSummarySerde));
+                .selectKey((windowedSymbol, summary) -> windowedSymbol.key());
+
+        summaries.to(properties.scoutSummaryTopic(), Produced.with(keySerde, scoutSummarySerde));
+
+        summaries
+                .groupByKey(Grouped.with(keySerde, scoutSummarySerde))
+                .aggregate(
+                        ScoutDashboardStats::empty,
+                        (symbol, summary, stats) -> stats.withSummary(symbol, summary),
+                        Materialized.<String, ScoutDashboardStats, KeyValueStore<Bytes, byte[]>>as(DASHBOARD_STATS_STORE)
+                                .withKeySerde(keySerde)
+                                .withValueSerde(dashboardStatsSerde));
 
         return rawEvents;
     }

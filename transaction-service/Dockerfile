@@ -27,11 +27,15 @@ COPY transaction-service/src transaction-service/src
 RUN mvn package -pl transaction-service -am -DskipTests -q
 
 # ──────────────────────────────────────────────────
-# Stage 2 – Runtime (JRE 21 slim)
+# Stage 2 – Runtime (JRE 21)
 # ──────────────────────────────────────────────────
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /workspace/transaction-service/target/*.jar app.jar
 
