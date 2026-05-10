@@ -153,6 +153,11 @@
     }
     .audit-panel table { min-width: 860px; }
     .audit-panel .meta { color: #64748b; font-family: monospace; font-size: 0.74rem; }
+    .audit-panel .compact { min-width: 1120px; }
+    .event-stack { display: grid; gap: 0.1rem; }
+    .event-stack strong { color: #e2e8f0; font-weight: 700; }
+    .event-stack span { color: #64748b; font-family: monospace; font-size: 0.74rem; }
+    .audit-missing { color: #64748b; font-size: 0.78rem; }
   </style>
 </head>
 <body>
@@ -241,65 +246,23 @@
   <section>
     <div class="section-header">
       <h2>Matching Audit</h2>
-      <span class="sub">Decoded Avro records consumed from buy-bids, matchable-asks, and order-matched</span>
+      <span class="sub">One compact trace row per match: buy bid + matched ask + emitted result</span>
     </div>
     <div class="audit-grid">
       <div class="audit-panel">
-        <h3>Buy Bids</h3>
-        <table>
+        <h3>Matching Decisions</h3>
+        <table class="compact">
           <thead>
             <tr>
               <th>Transaction ID</th>
-              <th>User ID</th>
               <th>Symbol</th>
-              <th>Bid Price</th>
-              <th>Quantity</th>
-              <th>Created</th>
-              <th>Kafka</th>
-              <th>Consumed</th>
-            </tr>
-          </thead>
-          <tbody id="buy-bids-body">
-            <tr class="empty-row"><td colspan="8">No buy bids audited yet…</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="audit-panel">
-        <h3>Matchable Asks</h3>
-        <table>
-          <thead>
-            <tr>
+              <th>Buy Bid</th>
               <th>Ask Quote ID</th>
-              <th>Symbol</th>
-              <th>Ask Price</th>
-              <th>Quantity</th>
+              <th>Matched Ask</th>
+              <th>Matched</th>
+              <th>Timeline</th>
               <th>Venue</th>
-              <th>Event Time</th>
               <th>Kafka</th>
-              <th>Consumed</th>
-            </tr>
-          </thead>
-          <tbody id="matchable-asks-body">
-            <tr class="empty-row"><td colspan="8">No matchable asks audited yet…</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="audit-panel">
-        <h3>Order Matches</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Transaction ID</th>
-              <th>Ask Quote ID</th>
-              <th>Symbol</th>
-              <th>Price</th>
-              <th>Quantity</th>
-              <th>Venue</th>
-              <th>Ask Time</th>
-              <th>Kafka</th>
-              <th>Consumed</th>
             </tr>
           </thead>
           <tbody id="order-matches-body">
@@ -331,6 +294,15 @@
   function kafkaMeta(row) {
     if (!row || !row.topic) return '–';
     return `${row.topic}:${row.partition}@${row.offset}`;
+  }
+
+  function eventStack(primary, secondary) {
+    return `
+      <div class="event-stack">
+        <strong>${primary}</strong>
+        <span>${secondary}</span>
+      </div>
+    `;
   }
 
   async function refresh() {
@@ -401,61 +373,37 @@
 
       // --- Matching Audit ---
       const buyBids = data.buyBids || [];
-      const buyBidsBody = document.getElementById('buy-bids-body');
-      if (buyBids.length === 0) {
-        buyBidsBody.innerHTML = '<tr class="empty-row"><td colspan="8">No buy bids audited yet…</td></tr>';
-      } else {
-        buyBidsBody.innerHTML = buyBids.map(b => `
-          <tr>
-            <td class="tid">${b.transactionId}</td>
-            <td class="uid">${b.userId}</td>
-            <td class="sym">${b.symbol}</td>
-            <td class="mono">${fmtPrice(b.bidPrice)}</td>
-            <td class="mono">${fmtPrice(b.bidQuantity)}</td>
-            <td class="mono">${fmtTime(b.createdAt)}</td>
-            <td class="meta">${kafkaMeta(b)}</td>
-            <td class="mono">${fmtTime(b.consumedAt)}</td>
-          </tr>
-        `).join('');
-      }
-
       const asks = data.matchableAsks || [];
-      const asksBody = document.getElementById('matchable-asks-body');
-      if (asks.length === 0) {
-        asksBody.innerHTML = '<tr class="empty-row"><td colspan="8">No matchable asks audited yet…</td></tr>';
-      } else {
-        asksBody.innerHTML = asks.map(a => `
-          <tr>
-            <td class="tid">${a.askQuoteId}</td>
-            <td class="sym">${a.symbol}</td>
-            <td class="mono">${fmtPrice(a.askPrice)}</td>
-            <td class="mono">${fmtPrice(a.askQuantity)}</td>
-            <td class="mono">${a.sourceVenue}</td>
-            <td class="mono">${fmtTime(a.eventTime)}</td>
-            <td class="meta">${kafkaMeta(a)}</td>
-            <td class="mono">${fmtTime(a.consumedAt)}</td>
-          </tr>
-        `).join('');
-      }
-
       const matches = data.orderMatches || [];
       const matchesBody = document.getElementById('order-matches-body');
       if (matches.length === 0) {
         matchesBody.innerHTML = '<tr class="empty-row"><td colspan="9">No order matches audited yet…</td></tr>';
       } else {
-        matchesBody.innerHTML = matches.map(m => `
-          <tr>
-            <td class="tid">${m.transactionId}</td>
-            <td class="tid">${m.askQuoteId}</td>
-            <td class="sym">${m.symbol}</td>
-            <td class="mono">${fmtPrice(m.matchedPrice)}</td>
-            <td class="mono">${fmtPrice(m.matchedQuantity)}</td>
-            <td class="mono">${m.sourceVenue}</td>
-            <td class="mono">${fmtTime(m.askEventTime)}</td>
-            <td class="meta">${kafkaMeta(m)}</td>
-            <td class="mono">${fmtTime(m.consumedAt)}</td>
-          </tr>
-        `).join('');
+        const bidsByTransactionId = new Map(buyBids.map(b => [b.transactionId, b]));
+        const asksByQuoteId = new Map(asks.map(a => [a.askQuoteId, a]));
+        matchesBody.innerHTML = matches.map(m => {
+          const bid = bidsByTransactionId.get(m.transactionId);
+          const ask = asksByQuoteId.get(m.askQuoteId);
+          const bidCell = bid
+            ? eventStack(`${fmtPrice(bid.bidPrice)} x ${fmtPrice(bid.bidQuantity)}`, `user ${bid.userId}`)
+            : '<span class="audit-missing">buy bid no longer retained</span>';
+          const askCell = ask
+            ? eventStack(`${fmtPrice(ask.askPrice)} x ${fmtPrice(ask.askQuantity)}`, `consumed ${fmtTime(ask.consumedAt)}`)
+            : '<span class="audit-missing">ask no longer retained</span>';
+          return `
+            <tr>
+              <td class="tid">${m.transactionId}</td>
+              <td class="sym">${m.symbol}</td>
+              <td>${bidCell}</td>
+              <td class="tid">${m.askQuoteId}</td>
+              <td>${askCell}</td>
+              <td>${eventStack(`${fmtPrice(m.matchedPrice)} x ${fmtPrice(m.matchedQuantity)}`, fmtTime(m.consumedAt))}</td>
+              <td>${eventStack(`bid ${fmtTime(m.bidCreatedAt)}`, `ask ${fmtTime(m.askEventTime)}`)}</td>
+              <td class="mono">${m.sourceVenue}</td>
+              <td class="meta">${kafkaMeta(m)}</td>
+            </tr>
+          `;
+        }).join('');
       }
 
     } catch (err) {
