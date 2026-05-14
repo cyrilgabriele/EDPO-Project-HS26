@@ -131,6 +131,33 @@
     .user-card .uid-label { font-size: 0.72rem; color: #4a5568; font-family: monospace; margin-top: 0.2rem; word-break: break-all; }
     .user-card .conf-time { font-size: 0.75rem; color: #22c55e; margin-top: 0.4rem; }
     .empty-users { color: #4a5568; text-align: center; padding: 1.5rem; font-size: 0.9rem; }
+
+    .audit-grid {
+      display: grid;
+      gap: 1rem;
+    }
+    .audit-panel {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      overflow-x: auto;
+    }
+    .audit-panel h3 {
+      color: #e2e8f0;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 0.65rem;
+    }
+    .audit-panel table { min-width: 860px; }
+    .audit-panel .meta { color: #64748b; font-family: monospace; font-size: 0.74rem; }
+    .audit-panel .compact { min-width: 1120px; }
+    .event-stack { display: grid; gap: 0.1rem; }
+    .event-stack strong { color: #e2e8f0; font-weight: 700; }
+    .event-stack span { color: #64748b; font-family: monospace; font-size: 0.74rem; }
+    .audit-missing { color: #64748b; font-size: 0.78rem; }
   </style>
 </head>
 <body>
@@ -147,7 +174,7 @@
 </header>
 
 <p class="notice">
-  Place orders via Camunda Operate → <strong>placeOrder.bpmn</strong>. Orders sit <strong>PENDING</strong> until a live Binance price matches the target, then move to <strong>APPROVED</strong> through the Zeebe workflow. The outbox row is written atomically with the status update and published to Kafka by the scheduler.
+  Place orders via Camunda Operate → <strong>placeOrder.bpmn</strong>. Orders sit <strong>PENDING</strong> until a matchable ask satisfies the buy bid, then move to <strong>APPROVED</strong> through the Zeebe workflow. The outbox row is written atomically with the status update and published to Kafka by the scheduler.
 </p>
 
 <main>
@@ -215,6 +242,37 @@
     </div>
   </section>
 
+  <!-- Matching Audit -->
+  <section>
+    <div class="section-header">
+      <h2>Matching Audit</h2>
+      <span class="sub">One compact trace row per match: buy bid + matched ask + emitted result</span>
+    </div>
+    <div class="audit-grid">
+      <div class="audit-panel">
+        <h3>Matching Decisions</h3>
+        <table class="compact">
+          <thead>
+            <tr>
+              <th>Transaction ID</th>
+              <th>Symbol</th>
+              <th>Buy Bid</th>
+              <th>Ask Quote ID</th>
+              <th>Matched Ask</th>
+              <th>Matched</th>
+              <th>Timeline</th>
+              <th>Venue</th>
+              <th>Kafka</th>
+            </tr>
+          </thead>
+          <tbody id="order-matches-body">
+            <tr class="empty-row"><td colspan="9">No order matches audited yet…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <script>
@@ -231,6 +289,20 @@
     if (!p) return '–';
     const n = Number(p);
     return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 });
+  }
+
+  function kafkaMeta(row) {
+    if (!row || !row.topic) return '–';
+    return `${row.topic}:${row.partition}@${row.offset}`;
+  }
+
+  function eventStack(primary, secondary) {
+    return `
+      <div class="event-stack">
+        <strong>${primary}</strong>
+        <span>${secondary}</span>
+      </div>
+    `;
   }
 
   async function refresh() {
@@ -297,6 +369,41 @@
             <div class="conf-time">confirmed ${fmtTime(u.confirmedAt)}</div>
           </div>
         `).join('');
+      }
+
+      // --- Matching Audit ---
+      const buyBids = data.buyBids || [];
+      const asks = data.matchableAsks || [];
+      const matches = data.orderMatches || [];
+      const matchesBody = document.getElementById('order-matches-body');
+      if (matches.length === 0) {
+        matchesBody.innerHTML = '<tr class="empty-row"><td colspan="9">No order matches audited yet…</td></tr>';
+      } else {
+        const bidsByTransactionId = new Map(buyBids.map(b => [b.transactionId, b]));
+        const asksByQuoteId = new Map(asks.map(a => [a.askQuoteId, a]));
+        matchesBody.innerHTML = matches.map(m => {
+          const bid = bidsByTransactionId.get(m.transactionId);
+          const ask = asksByQuoteId.get(m.askQuoteId);
+          const bidCell = bid
+            ? eventStack(`${fmtPrice(bid.bidPrice)} x ${fmtPrice(bid.bidQuantity)}`, `user ${bid.userId}`)
+            : '<span class="audit-missing">buy bid no longer retained</span>';
+          const askCell = ask
+            ? eventStack(`${fmtPrice(ask.askPrice)} x ${fmtPrice(ask.askQuantity)}`, `consumed ${fmtTime(ask.consumedAt)}`)
+            : '<span class="audit-missing">ask no longer retained</span>';
+          return `
+            <tr>
+              <td class="tid">${m.transactionId}</td>
+              <td class="sym">${m.symbol}</td>
+              <td>${bidCell}</td>
+              <td class="tid">${m.askQuoteId}</td>
+              <td>${askCell}</td>
+              <td>${eventStack(`${fmtPrice(m.matchedPrice)} x ${fmtPrice(m.matchedQuantity)}`, fmtTime(m.consumedAt))}</td>
+              <td>${eventStack(`bid ${fmtTime(m.bidCreatedAt)}`, `ask ${fmtTime(m.askEventTime)}`)}</td>
+              <td class="mono">${m.sourceVenue}</td>
+              <td class="meta">${kafkaMeta(m)}</td>
+            </tr>
+          `;
+        }).join('');
       }
 
     } catch (err) {

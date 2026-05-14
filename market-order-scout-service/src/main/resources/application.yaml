@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: market-order-scout-service
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+server:
+  port: 8086
+
+crypto:
+  market-scout:
+    topology:
+      enabled: ${MARKET_SCOUT_TOPOLOGY_ENABLED:true}
+    ask-threshold: ${MARKET_SCOUT_ASK_THRESHOLD:100000.00}
+    window-size: ${MARKET_SCOUT_WINDOW_SIZE:30s}
+    source-venue: ${MARKET_SCOUT_SOURCE_VENUE:BINANCE_USD_M_FUTURES}
+  kafka:
+    topic:
+      scout-raw: crypto.scout.raw
+      scout-derived-partitions: 3
+      scout-ask-quotes: crypto.scout.ask-quotes
+      scout-matchable-asks: crypto.scout.matchable-asks
+      scout-ask-opportunities: crypto.scout.ask-opportunities
+      scout-window-summary: crypto.scout.window-summary
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

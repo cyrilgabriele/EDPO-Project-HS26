@@ -136,6 +136,38 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
       BINANCE_STREAM_URL: ${BINANCE_STREAM_URL:-wss://stream.binance.com:9443/ws}
 
+  # ── Market Partial Book Ingestion Service ─────────────────────────────────
+  market-partial-book-ingestion-service:
+    build:
+      context: ..
+      dockerfile: market-partial-book-ingestion-service/Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8087:8087"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      BINANCE_PARTIAL_DEPTH_STREAM_URL: ${BINANCE_PARTIAL_DEPTH_STREAM_URL:-wss://fstream.binance.com/stream?streams=}
+      BINANCE_PARTIAL_DEPTH_SYMBOLS: ${BINANCE_PARTIAL_DEPTH_SYMBOLS:-BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,LTCUSDT}
+      BINANCE_PARTIAL_DEPTH_LEVELS: ${BINANCE_PARTIAL_DEPTH_LEVELS:-20}
+      BINANCE_PARTIAL_DEPTH_UPDATE_SPEED: ${BINANCE_PARTIAL_DEPTH_UPDATE_SPEED:-500ms}
+
+  # ── Market Order Scout Service ─────────────────────────────────────────────
+  market-order-scout-service:
+    build:
+      context: ..
+      dockerfile: market-order-scout-service/Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+      market-partial-book-ingestion-service:
+        condition: service_healthy
+    ports:
+      - "8086:8086"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+
   # ── Portfolio Service ────────────────────────────────────────────────────────
   portfolio-service:
     build:

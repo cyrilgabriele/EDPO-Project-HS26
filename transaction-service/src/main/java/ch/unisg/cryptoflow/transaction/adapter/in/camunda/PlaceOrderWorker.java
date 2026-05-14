@@ -2,9 +2,8 @@ package ch.unisg.cryptoflow.transaction.adapter.in.camunda;
 
 import ch.unisg.cryptoflow.transaction.adapter.in.camunda.job.OrderProcessingVariables;
 import ch.unisg.cryptoflow.transaction.adapter.out.persistence.ConfirmedUserRepository;
-import ch.unisg.cryptoflow.transaction.application.OrderMatchingService;
 import ch.unisg.cryptoflow.transaction.application.port.out.SaveTransactionPort;
-import ch.unisg.cryptoflow.transaction.domain.PendingOrder;
+import ch.unisg.cryptoflow.transaction.avro.BuyBid;
 import ch.unisg.cryptoflow.transaction.domain.TransactionRecord;
 import ch.unisg.cryptoflow.transaction.domain.TransactionStatus;
 import io.camunda.zeebe.client.ZeebeClient;
@@ -13,18 +12,22 @@ import io.camunda.zeebe.client.api.worker.JobClient;
 import io.camunda.zeebe.spring.client.annotation.JobWorker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
 /**
  * Incoming Camunda adapter – handles the {@code placeOrderWorker} job.
  *
- * <p>Validates input, generates a transactionId, persists the order as PENDING, and registers
- * it in the in-memory price-matching map. Throws a BPMN error {@code INVALID_ORDER} for
+ * <p>Validates input, generates a transactionId, persists the order as PENDING, and publishes
+ * it as a symbol-keyed buy bid for the matching topology. Throws a BPMN error {@code INVALID_ORDER} for
  * deterministic validation failures so the process loops back to the order form.
  */
 @Component
@@ -32,10 +35,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PlaceOrderWorker {
 
-    private final OrderMatchingService orderMatchingService;
     private final SaveTransactionPort saveTransactionPort;
     private final ConfirmedUserRepository confirmedUserRepository;
+    private final KafkaTemplate<String, BuyBid> buyBidKafkaTemplate;
     private final ZeebeClient zeebeClient;
+
+    @Value("${crypto.kafka.topic.buy-bids}")
+    private String buyBidTopic;
 
     @JobWorker(type = "placeOrderWorker", autoComplete = false)
     public void placeOrder(JobClient client, ActivatedJob job) {
@@ -59,31 +65,36 @@ public class PlaceOrderWorker {
 
         String transactionId = UUID.randomUUID().toString();
         Instant now = Instant.now();
+        String symbol = normalizeSymbol(vars.symbol());
+        BigDecimal amount = normalize(new BigDecimal(vars.amount()));
+        BigDecimal price = normalize(new BigDecimal(vars.price()));
         log.debug("{} | transactionId: {}", vars, transactionId);
 
         saveTransactionPort.save(new TransactionRecord(
                 transactionId,
                 vars.userId(),
-                vars.symbol(),
-                new BigDecimal(vars.amount()),
-                new BigDecimal(vars.price()),
+                symbol,
+                amount,
+                price,
                 TransactionStatus.PENDING,
                 now,
                 null,
                 null
         ));
 
-        orderMatchingService.registerOrder(new PendingOrder(
-                transactionId,
-                vars.userId(),
-                vars.symbol(),
-                new BigDecimal(vars.amount()),
-                new BigDecimal(vars.price()),
-                now
-        ));
+        BuyBid bid = BuyBid.newBuilder()
+                .setTransactionId(transactionId)
+                .setUserId(vars.userId())
+                .setSymbol(symbol)
+                .setBidQuantity(amount)
+                .setBidPrice(price)
+                .setCreatedAt(now)
+                .build();
+        buyBidKafkaTemplate.send(buyBidTopic, symbol, bid);
 
         variables.put("transactionId", transactionId);
         variables.put("userId", vars.userId());
+        variables.put("symbol", symbol);
         variables.put("validationError", "");  // clear any previous validation error
         client.newCompleteCommand(job.getKey()).variables(variables).send().join();
     }
@@ -115,5 +126,13 @@ public class PlaceOrderWorker {
             return "Amount and price must be valid numbers";
         }
         return null;
+    }
+
+    private static String normalizeSymbol(String symbol) {
+        return symbol.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static BigDecimal normalize(BigDecimal value) {
+        return value.setScale(18, RoundingMode.HALF_UP);
     }
 }

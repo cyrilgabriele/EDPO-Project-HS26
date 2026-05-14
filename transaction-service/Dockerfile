@@ -9,6 +9,8 @@ WORKDIR /workspace
 COPY pom.xml .
 COPY shared-events/pom.xml shared-events/
 COPY market-data-service/pom.xml market-data-service/
+COPY market-partial-book-ingestion-service/pom.xml market-partial-book-ingestion-service/
+COPY market-order-scout-service/pom.xml market-order-scout-service/
 COPY portfolio-service/pom.xml portfolio-service/
 COPY transaction-service/pom.xml transaction-service/
 COPY user-service/pom.xml user-service/
@@ -25,11 +27,15 @@ COPY transaction-service/src transaction-service/src
 RUN mvn package -pl transaction-service -am -DskipTests -q
 
 # ──────────────────────────────────────────────────
-# Stage 2 – Runtime (JRE 21 slim)
+# Stage 2 – Runtime (JRE 21)
 # ──────────────────────────────────────────────────
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /workspace/transaction-service/target/*.jar app.jar
 

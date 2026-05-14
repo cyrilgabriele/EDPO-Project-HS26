@@ -1,7 +1,6 @@
 package ch.unisg.cryptoflow.transaction.adapter.in.camunda;
 
 import ch.unisg.cryptoflow.events.OrderApprovedEvent;
-import ch.unisg.cryptoflow.transaction.application.OrderMatchingService;
 import ch.unisg.cryptoflow.transaction.application.port.out.ApproveTransactionPort;
 import ch.unisg.cryptoflow.transaction.domain.TransactionNotFoundException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,7 +28,6 @@ import java.util.UUID;
 public class ApproveOrderWorker {
 
     private final ApproveTransactionPort approveTransactionPort;
-    private final OrderMatchingService orderMatchingService;
     private final ObjectMapper objectMapper;
 
     @Value("${crypto.kafka.topic.order-approved}")
@@ -92,8 +90,6 @@ public class ApproveOrderWorker {
                     .send().join();
             return;
         }
-
-        orderMatchingService.removeOrder(transactionId);
 
         client.newCompleteCommand(job.getKey()).variables(variables).send().join();
     }

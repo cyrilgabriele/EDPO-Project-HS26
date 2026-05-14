@@ -9,6 +9,8 @@ WORKDIR /workspace
 COPY pom.xml .
 COPY shared-events/pom.xml shared-events/
 COPY market-data-service/pom.xml market-data-service/
+COPY market-partial-book-ingestion-service/pom.xml market-partial-book-ingestion-service/
+COPY market-order-scout-service/pom.xml market-order-scout-service/
 COPY portfolio-service/pom.xml portfolio-service/
 COPY transaction-service/pom.xml transaction-service/
 COPY user-service/pom.xml user-service/

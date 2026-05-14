@@ -1,0 +1,35 @@
+{
+  "type": "record",
+  "name": "MatchableAsk",
+  "namespace": "ch.unisg.cryptoflow.events.avro",
+  "fields": [
+    { "name": "askQuoteId", "type": "string" },
+    { "name": "symbol", "type": "string" },
+    {
+      "name": "askPrice",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 30,
+        "scale": 18
+      }
+    },
+    {
+      "name": "askQuantity",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 30,
+        "scale": 18
+      }
+    },
+    {
+      "name": "eventTime",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    { "name": "sourceVenue", "type": "string" }
+  ]
+}

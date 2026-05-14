@@ -1,0 +1,36 @@
+{
+  "type": "record",
+  "name": "ScoutWindowSummary",
+  "namespace": "ch.unisg.cryptoflow.marketscout.avro",
+  "fields": [
+    { "name": "symbol", "type": "string" },
+    {
+      "name": "windowStart",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "windowEnd",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    { "name": "opportunityCount", "type": "long" },
+    {
+      "name": "minAskPrice",
+      "type": [
+        "null",
+        {
+          "type": "bytes",
+          "logicalType": "decimal",
+          "precision": 38,
+          "scale": 18
+        }
+      ],
+      "default": null
+    }
+  ]
+}

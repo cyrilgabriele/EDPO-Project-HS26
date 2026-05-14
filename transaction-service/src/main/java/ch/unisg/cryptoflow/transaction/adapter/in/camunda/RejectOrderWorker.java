@@ -1,6 +1,5 @@
 package ch.unisg.cryptoflow.transaction.adapter.in.camunda;
 
-import ch.unisg.cryptoflow.transaction.application.OrderMatchingService;
 import ch.unisg.cryptoflow.transaction.application.port.out.UpdateTransactionPort;
 import ch.unisg.cryptoflow.transaction.domain.TransactionStatus;
 import io.camunda.zeebe.client.api.response.ActivatedJob;
@@ -14,8 +13,7 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * Handles the {@code rejectOrderWorker} job: marks the transaction as REJECTED
- * and removes any stale in-memory entry.
+ * Handles the {@code rejectOrderWorker} job: marks the transaction as REJECTED.
  */
 @Slf4j
 @Component
@@ -23,7 +21,6 @@ import java.util.Map;
 public class RejectOrderWorker {
 
     private final UpdateTransactionPort updateTransactionPort;
-    private final OrderMatchingService orderMatchingService;
 
     @JobWorker(type = "rejectOrderWorker", autoComplete = false)
     public void rejectOrder(JobClient client, ActivatedJob job) {
@@ -39,9 +36,6 @@ public class RejectOrderWorker {
                 Instant.now(),
                 null
         );
-
-        // 2. Clean up stale in-memory entry if still present
-        orderMatchingService.removeOrder(transactionId);
 
         client.newCompleteCommand(job.getKey()).variables(variables).send().join();
     }

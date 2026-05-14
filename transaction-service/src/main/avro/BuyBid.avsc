@@ -1,0 +1,35 @@
+{
+  "type": "record",
+  "name": "BuyBid",
+  "namespace": "ch.unisg.cryptoflow.transaction.avro",
+  "fields": [
+    { "name": "transactionId", "type": "string" },
+    { "name": "userId", "type": "string" },
+    { "name": "symbol", "type": "string" },
+    {
+      "name": "bidPrice",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 30,
+        "scale": 18
+      }
+    },
+    {
+      "name": "bidQuantity",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 30,
+        "scale": 18
+      }
+    },
+    {
+      "name": "createdAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    }
+  ]
+}

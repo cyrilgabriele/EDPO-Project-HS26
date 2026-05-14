@@ -2,7 +2,7 @@
 
 > Course: Event-driven and Process-oriented Architectures (EDPO), FS2026
 >
-> Copyright 2026 - present [Cyril Gabriele](mailto:cyril.gabriele@student.unisg.ch), [Ioannis Theodosiadis](mailto:ioannis.theodosiadis@student.unisg.ch), University of St. Gallen
+> Copyright 2026 - present [Cyril Gabriele](mailto:cyril.gabriele@student.unisg.ch), [Ioannis Theodosiadis](mailto:ioannis.theodosiadis@student.unisg.ch), University of St. Gallen (HSG)
 
 CryptoFlow is a multi-service crypto portfolio simulation platform built with Apache Kafka, Spring Boot, PostgreSQL, and Camunda 8. It demonstrates event-driven architecture patterns including event-carried state transfer, process orchestration, sagas with compensation, and the outbox pattern.
 
@@ -12,6 +12,8 @@ CryptoFlow is a multi-service crypto portfolio simulation platform built with Ap
 | --- | ---: | --- |
 | `shared-events` | — | Shared Kafka event records (Maven dependency) |
 | `market-data-service` | `8081` | Subscribes to Binance WebSocket streams, publishes `crypto.price.raw` |
+| `market-order-scout-service` | `8086` | Consumes `crypto.scout.raw`, derives Market Scout ask quotes, ask opportunities, and window summaries |
+| `market-partial-book-ingestion-service` | `8087` | Subscribes to Binance USD-M partial book depth streams, publishes `crypto.scout.raw` |
 | `portfolio-service` | `8082` | Maintains a local price cache, stores holdings, exposes read APIs |
 | `transaction-service` | `8083` | Runs the place-order BPMN, matches orders, publishes `transaction.order.approved` |
 | `user-service` | `8084` | Stores users and confirmation links, handles onboarding compensation |
@@ -55,6 +57,8 @@ This starts all services and the supporting infrastructure:
 | PostgreSQL | `localhost:5432` |
 | pgAdmin | `http://localhost:5050` |
 | market-data-service | `http://localhost:8081` |
+| market-order-scout-service | `http://localhost:8086` |
+| market-partial-book-ingestion-service | `http://localhost:8087` |
 | portfolio-service | `http://localhost:8082` |
 | transaction-service | `http://localhost:8083` |
 | user-service | `http://localhost:8084` |
@@ -68,6 +72,8 @@ Three per-service databases (`user_service_db`, `portfolio_service_db`, `transac
 EDPO-Project-FS26/
 ├── shared-events/          # shared Kafka event records
 ├── market-data-service/
+├── market-order-scout-service/
+├── market-partial-book-ingestion-service/
 ├── portfolio-service/
 ├── transaction-service/
 ├── user-service/
