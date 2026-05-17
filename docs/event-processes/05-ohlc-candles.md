@@ -16,6 +16,7 @@ Candlesticks are table-stakes UI for any crypto platform. They are also the text
 - **Emission:** `suppress(untilWindowCloses)`, one final bar per `(symbol, window)`. No `.live` sibling topic for now.
 - **Serialization:** Avro per [ADR-0032](../adrs/0032_avro_schema_registry_for_derived_events.md).
 - **Volume field dropped.** `CleanPriceTick` carries no volume (scope 02 omits it; Binance tick stream doesn't expose it), so the `Ohlc` schema below uses **`tickCount` only** as the volume proxy. Removed `volume` from the original draft.
+- **Coin metadata enrichment.** Closed bars are joined with `reference.crypto.metadata` (a `GlobalKTable` produced by coin-metadata-service) inside the same topology. The Ohlc schema carries the joined fields (`name`, `imageUrl`, `marketCapRank`, etc.) added backward-compatibly. See [ADR-0033](../adrs/0033_coin_metadata_enrichment_via_global_ktable.md).
 
 ## Patterns hit
 
