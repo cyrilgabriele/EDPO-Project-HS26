@@ -25,6 +25,9 @@ spring:
     consumer:
       group-id: transaction-service-group
       auto-offset-reset: earliest
+    properties:
+      # Confluent Schema Registry endpoint for Avro consumers (ADR-0032)
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://schema-registry:8081}
 
 camunda:
   client:
@@ -45,6 +48,8 @@ crypto:
       matchable-asks: crypto.scout.matchable-asks
       order-approved: transaction.order.approved
       user-confirmed: user.confirmed
+      fx-rate: reference.fx.rate
+      user-display-currency: user.display-currency
   transaction-matching:
     topology:
       enabled: ${TRANSACTION_MATCHING_TOPOLOGY_ENABLED:true}
