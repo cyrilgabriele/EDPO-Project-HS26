@@ -38,7 +38,7 @@
     }
 
     .notice {
-      max-width: 1100px;
+      max-width: 1200px;
       margin: 1.25rem auto 0;
       padding: 0 2rem;
       font-size: 0.85rem;
@@ -46,7 +46,7 @@
     }
     .notice strong { color: #93c5fd; }
 
-    main { max-width: 1100px; margin: 1rem auto; padding: 0 2rem 2rem; display: grid; gap: 1.5rem; }
+    main { max-width: 1200px; margin: 1rem auto; padding: 0 2rem 2rem; display: grid; gap: 1.5rem; }
 
     section {
       background: #1a1f2e;
@@ -95,6 +95,27 @@
     tbody td.part  { color: #a78bfa; font-family: monospace; }
     tbody td.eid   { font-family: monospace; font-size: 0.75rem; color: #94a3b8; word-break: break-all; min-width: 220px; }
 
+    /* OHLC table specifics */
+    tbody td.interval {
+      font-family: monospace;
+      font-weight: 700;
+      color: #fbbf24;
+      background: #1f1b08;
+      border-radius: 0.3rem;
+      padding: 0.15rem 0.5rem;
+      display: inline-block;
+      font-size: 0.7rem;
+    }
+    tbody td.ohlc { font-family: monospace; }
+    tbody td.ohlc.open  { color: #94a3b8; }
+    tbody td.ohlc.high  { color: #34d399; }
+    tbody td.ohlc.low   { color: #f87171; }
+    tbody td.ohlc.close { color: #c084fc; font-weight: 700; }
+    tbody td.change.up   { color: #34d399; font-family: monospace; font-weight: 700; }
+    tbody td.change.down { color: #f87171; font-family: monospace; font-weight: 700; }
+    tbody td.change.flat { color: #94a3b8; font-family: monospace; }
+    tbody td.window { font-family: monospace; font-size: 0.72rem; color: #94a3b8; }
+
     .empty-row td { color: #4a5568; text-align: center; padding: 2rem; }
 
     .info-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
@@ -115,14 +136,14 @@
 <header>
   <h1>market-data-service</h1>
   <span class="badge">Event Notification</span>
+  <span class="badge">Tumbling Windows (Scope 05)</span>
   <span class="badge" style="margin-left:auto; font-size:0.7rem; background:#0f1117; border-color:#2d3748; color:#4a5568">
     CryptoFlow · EDPO FS2026
   </span>
 </header>
 
 <p class="notice">
-  Live Kafka events published to <strong>crypto.price.raw</strong> from the Binance WebSocket stream.
-  The producer publishes and forgets — it has no knowledge of downstream consumers.
+  Live Kafka events published to <strong>crypto.price.raw</strong> from the Binance WebSocket stream. The producer publishes and forgets. A co-located Kafka Streams app aggregates the same ticks into closed OHLC bars on <strong>crypto.ohlc.1m / 5m / 1h</strong> using event-time tumbling windows with <code>suppress(untilWindowCloses)</code> (see ADR-0031).
 </p>
 
 <main>
@@ -160,6 +181,40 @@
     </table>
   </section>
 
+  <section>
+    <div class="live-header">
+      <h2>Closed OHLC Bars (latest per symbol &amp; interval)</h2>
+      <div class="live-meta">
+        <span id="ohlc-count" style="color:#64748b">–</span>
+      </div>
+    </div>
+
+    <div id="ohlc-chips" class="info-chips">
+      <span class="chip">topics: <strong>loading…</strong></span>
+    </div>
+    <br>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Interval</th>
+          <th>Window</th>
+          <th>Open</th>
+          <th>High</th>
+          <th>Low</th>
+          <th>Close</th>
+          <th>Δ%</th>
+          <th>Ticks</th>
+          <th>Received</th>
+        </tr>
+      </thead>
+      <tbody id="ohlc-body">
+        <tr class="empty-row"><td colspan="10">No closed bars yet, waiting for first window close + grace…</td></tr>
+      </tbody>
+    </table>
+  </section>
+
 </main>
 
 <script>
@@ -172,12 +227,48 @@
            String(d.getMilliseconds()).padStart(3, '0');
   }
 
+  function fmtWindow(startIso, endIso) {
+    if (!startIso || !endIso) return '–';
+    const s = new Date(startIso);
+    const e = new Date(endIso);
+    return s.toLocaleTimeString('en-GB', { hour12: false }) +
+           ' → ' +
+           e.toLocaleTimeString('en-GB', { hour12: false });
+  }
+
+  function intervalLabel(sec) {
+    if (sec === 60)   return '1m';
+    if (sec === 300)  return '5m';
+    if (sec === 3600) return '1h';
+    return sec + 's';
+  }
+
+  function fmtUsdt(n) {
+    if (n === null || n === undefined || n === '') return '–';
+    const x = Number(n);
+    if (isNaN(x)) return '–';
+    if (x >= 1000) return x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (x >= 1)    return x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    return x.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 });
+  }
+
+  function pctChange(open, close) {
+    const o = Number(open);
+    const c = Number(close);
+    if (!o || isNaN(o) || isNaN(c)) return { text: '–', cls: 'flat' };
+    const pct = ((c - o) / o) * 100;
+    const sign = pct > 0 ? '+' : '';
+    const cls = pct > 0 ? 'up' : (pct < 0 ? 'down' : 'flat');
+    return { text: sign + pct.toFixed(2) + '%', cls };
+  }
+
   async function refresh() {
     try {
       const res = await fetch('/api/dashboard');
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
 
+      // Live stream chips and table
       const chips = document.getElementById('info-chips');
       chips.innerHTML =
         `<span class="chip">topic: <strong>${data.topic}</strong></span>` +
@@ -192,20 +283,56 @@
       const tbody = document.getElementById('events-body');
       const events = data.recentEvents || [];
       if (events.length === 0) {
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No events yet — waiting for Binance stream…</td></tr>';
-        return;
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No events yet, waiting for Binance stream…</td></tr>';
+      } else {
+        tbody.innerHTML = events.map(e => `
+          <tr>
+            <td class="sym">${e.symbol}</td>
+            <td class="price">${fmtUsdt(e.price)}</td>
+            <td class="part">${e.partition}</td>
+            <td class="mono">${e.offset}</td>
+            <td class="mono">${fmt(e.eventTimestamp)}</td>
+            <td class="mono">${fmt(e.publishedAt)}</td>
+            <td class="eid">${e.eventId || '–'}</td>
+          </tr>
+        `).join('');
       }
-      tbody.innerHTML = events.map(e => `
-        <tr>
-          <td class="sym">${e.symbol}</td>
-          <td class="price">${Number(e.price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 8})}</td>
-          <td class="part">${e.partition}</td>
-          <td class="mono">${e.offset}</td>
-          <td class="mono">${fmt(e.eventTimestamp)}</td>
-          <td class="mono">${fmt(e.publishedAt)}</td>
-          <td class="eid">${e.eventId || '–'}</td>
-        </tr>
-      `).join('');
+
+      // OHLC chips and table
+      const ohlcChips = document.getElementById('ohlc-chips');
+      const ohlcTopics = data.ohlcTopics || {};
+      ohlcChips.innerHTML =
+        `<span class="chip">1m: <strong>${ohlcTopics.oneMinute || '–'}</strong></span>` +
+        `<span class="chip">5m: <strong>${ohlcTopics.fiveMinutes || '–'}</strong></span>` +
+        `<span class="chip">1h: <strong>${ohlcTopics.oneHour || '–'}</strong></span>`;
+
+      const bars = data.ohlcBars || [];
+      document.getElementById('ohlc-count').textContent =
+        bars.length + ' (symbol × interval) pair' + (bars.length !== 1 ? 's' : '');
+
+      const ohlcBody = document.getElementById('ohlc-body');
+      if (bars.length === 0) {
+        ohlcBody.innerHTML = '<tr class="empty-row"><td colspan="10">No closed bars yet, waiting for first window close + grace…</td></tr>';
+      } else {
+        ohlcBody.innerHTML = bars.map(b => {
+          const change = pctChange(b.open, b.close);
+          return `
+            <tr>
+              <td class="sym">${b.symbol}</td>
+              <td><span class="interval">${intervalLabel(b.intervalSec)}</span></td>
+              <td class="window">${fmtWindow(b.windowStart, b.windowEnd)}</td>
+              <td class="ohlc open">${fmtUsdt(b.open)}</td>
+              <td class="ohlc high">${fmtUsdt(b.high)}</td>
+              <td class="ohlc low">${fmtUsdt(b.low)}</td>
+              <td class="ohlc close">${fmtUsdt(b.close)}</td>
+              <td class="change ${change.cls}">${change.text}</td>
+              <td class="mono">${b.tickCount}</td>
+              <td class="mono">${fmt(b.receivedAt)}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
     } catch (err) {
       document.getElementById('dot').className = 'dot red';
       document.getElementById('status-text').textContent = 'offline';
