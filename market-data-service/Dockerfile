@@ -34,6 +34,9 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
+# RocksDB (used by Kafka Streams state stores) needs libstdc++ at runtime.
+RUN apk add --no-cache libstdc++
+
 COPY --from=build /workspace/market-data-service/target/*.jar app.jar
 
 EXPOSE 8081
