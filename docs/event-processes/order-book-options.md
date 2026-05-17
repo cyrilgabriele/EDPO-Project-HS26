@@ -53,6 +53,28 @@ Join `crypto.price.clean` (trade ticks) with the book snapshot stream inside a s
 - **Value:** HFT-flavored signal; strong narrative for the report.
 - **Coverage:** **closes the only remaining gap** in the required-pattern list.
 
+### Lecture-10 mechanics for option 3
+
+Lecture 10 nails down the API and runtime:
+
+- The window is a **sliding join window** (`JoinWindows`):
+  `JoinWindows.ofTimeDifferenceAndGrace(Duration.ofMillis(500),
+  Duration.ofMillis(50))`. Two records with the same key are joined iff
+  their event-time stamps differ by ≤ 500 ms.
+- Both sides need a **`TimestampExtractor`** that pulls event time from
+  the payload (Binance trade ts on one side, book snapshot ts on the
+  other) — see `32-timestamp-extractor.md`. Otherwise the 500 ms
+  window will misalign as wall-clock drift bleeds in.
+- **Co-partitioning is mandatory** for `KStream`–`KStream` joins —
+  same key (`symbol`), same partitioning, same partition count. If
+  the book stream isn't already keyed by the canonical symbol, add a
+  `selectKey` upstream (which triggers a repartition).
+- **Local state** holds recent records on each side for the window
+  duration (`StreamJoined.with(...)`).
+- Output timestamp = `max(input timestamps)` per Lecture 10. That is
+  exactly what an "aggressor classification at trade time" should
+  carry.
+
 ## Side-by-side
 
 |  | Option 1 | Option 2 | Option 3 |
@@ -79,5 +101,7 @@ Join `crypto.price.clean` (trade ticks) with the book snapshot stream inside a s
 
 ## Related
 
-- Pattern reference: `docs/agent-instructions/events/15-streaming-join.md`.
+- Pattern reference: `docs/agent-instructions/events/15-streaming-join.md`,
+  `07-time-windows.md` (sliding join window),
+  `32-timestamp-extractor.md` (payload-driven event time).
 - Related scopes: `02-price-stream-sanity.md` (for option 1), `04-portfolio-valuation.md` (stream-table-join pattern reuse for option 2).

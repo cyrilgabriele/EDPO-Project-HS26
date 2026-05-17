@@ -2,15 +2,21 @@
 
 Working specs for the stream-processing extensions to CryptoFlow, one file per scope. Each file holds the information needed to derive a topology and later write an ADR.
 
+## Cross-context spec
+
+| Scope | File |
+|---|---|
+| Display Currency, FX, Portfolio & OHLC cross-context narrative | [00-display-currency-cross-context.md](00-display-currency-cross-context.md) |
+
 ## Committed scopes
 
 | # | Scope | Type | Owner | File |
 |---|---|---|---|---|
-| 1 | FX rate ingestion | stateless | TBD | [01-fx-rate-ingestion.md](01-fx-rate-ingestion.md) |
+| 1 | FX rate ingestion | stateless | Janni | [01-fx-rate-ingestion.md](01-fx-rate-ingestion.md) |
 | 2 | Price stream sanity | stateless | TBD | [02-price-stream-sanity.md](02-price-stream-sanity.md) |
-| 3 | FX price enrichment | stateful | TBD | [03-fx-price-enrichment.md](03-fx-price-enrichment.md) |
-| 4 | Portfolio valuation | stateful | TBD | [04-portfolio-valuation.md](04-portfolio-valuation.md) |
-| 5 | OHLC candlesticks | windowed | TBD | [05-ohlc-candles.md](05-ohlc-candles.md) |
+| 3 | FX price enrichment | stateful | Janni | [03-fx-price-enrichment.md](03-fx-price-enrichment.md) |
+| 4 | Portfolio valuation | stateful | Janni | [04-portfolio-valuation.md](04-portfolio-valuation.md) |
+| 5 | OHLC candlesticks | windowed | Janni | [05-ohlc-candles.md](05-ohlc-candles.md) |
 | 6 | Technical indicators | windowed | TBD | [06-technical-indicators.md](06-technical-indicators.md) |
 
 ## Proposals pending discussion
@@ -61,15 +67,9 @@ Drawn from `lab11-yellingapp`, `lab12Part1-cryptosentiment`, `lab12Part2-eyeTrac
 - Centralize Kafka Streams serde construction in an `AvroSerdes` factory class (per `lab12Part1`), one `public static Serde<T> T(String url, boolean isKey)` method per record, wrapping `SpecificAvroSerde<T>` configured with `schema.registry.url`.
 - Schema-Registry URL in labs: `http://localhost:8081` — the service is **not** currently in our `docker-compose` and will need to be added.
 
-## Open cross-cutting decision — serialization
+## Resolved cross-cutting decision: serialization
 
-`shared-events` today uses **Java records + Jackson/JSON**, not Avro. The course requires Avro. Options:
-
-- **A.** Migrate existing records (`CryptoPriceUpdatedEvent`, `OrderApprovedEvent`, …) to Avro-generated classes. Single format everywhere; largest change.
-- **B.** Keep existing events in JSON, emit Avro only from new scopes (`reference.fx.rate`, `crypto.price.clean`, `crypto.price.localized`, `portfolio.value.updated`, `crypto.ohlc.*`, `crypto.indicator.*`). Scope 2 bridges JSON-in / Avro-out.
-- **C.** Dual serdes during a staged migration, drop JSON once everything is Avro.
-
-**Proposed for next-week milestone:** option **B** — unblocks scopes 1 and 2 without touching existing producers; revisit later.
+Resolved as **option B** by [ADR-0032](../adrs/0032_avro_schema_registry_for_derived_events.md). Existing JSON topics stay JSON; new derived topics (`reference.fx.rate`, `crypto.price.localized`, `portfolio.value.updated`, `crypto.ohlc.*`, `crypto.indicator.*`, `user.display-currency`) use Avro with Confluent Schema Registry. `schema-registry` is added to `docker/docker-compose` on `http://localhost:8081`. ADR-0022's registryless Avro for market-scout topics is grandfathered.
 
 ## A scope is ready for implementation when
 

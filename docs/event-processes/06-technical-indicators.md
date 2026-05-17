@@ -1,6 +1,6 @@
 # 06. Technical Indicators (SMA / EMA / RSI)
 
-**Type:** windowed &nbsp;|&nbsp; **Required patterns:** Processing with Local State, Time Windows (Hopping); optional Multiphase Repartitioning, Out-of-Sequence Events &nbsp;|&nbsp; **Owner:** TBD &nbsp;|&nbsp; **Status:** draft
+**Type:** windowed &nbsp;|&nbsp; **Required patterns:** Processing with Local State, Time Windows (Hopping or Sliding); optional Multiphase Repartitioning, Out-of-Sequence Events &nbsp;|&nbsp; **Owner:** TBD &nbsp;|&nbsp; **Status:** draft
 
 ## Purpose
 
@@ -14,11 +14,13 @@ Hopping windows demonstrate *rolling* aggregations — different from scope 5's 
 
 | File | Role |
 |---|---|
-| `07-time-windows.md` | hopping windows |
+| `07-time-windows.md` | hopping (option A) or sliding-aggregation (option B) — see *Window choice* below |
 | `11-processing-with-local-state.md` | window state for moving aggregates and gain/loss buffers |
 | `12-multiphase-repartitioning.md` | applies in option A — OHLC is already per-symbol, but a later cross-symbol ranking (e.g. top-RSI) would be the multiphase step |
 | `05-time-semantics.md` | event time drives window assignment |
+| `32-timestamp-extractor.md` | inherits the extractor used by the input scope (bars or ticks) |
 | `16-out-of-sequence-events.md` | grace period |
+| `33-suppress-operator.md` | optional — if downstream wants only finalised indicator snapshots |
 
 ## Topology — Option A (from bars, preferred)
 
@@ -78,11 +80,40 @@ N/A (within a single symbol).
 
 ## Windowing
 
+### Window choice (Lecture 10)
+
+Lecture 10 makes the menu explicit: **hopping**, **session**,
+**sliding-aggregation** are all candidates for moving aggregates. For
+this scope:
+
+| Window | Behaviour | Fit |
+|---|---|---|
+| **Hopping(size=20m, advance=1m)** | one snapshot per minute, epoch-aligned to bar boundaries | ✅ best fit for **option A** (input is bars) — emissions stay aligned with the input cadence |
+| **Sliding-aggregation(size=20m)** | continuous per-record aggregate, window centred on each input record | best fit for **option B** (input is ticks) — gives a fresh indicator value on every tick |
+| Tumbling | non-overlapping → wrong shape for a *moving* average | ❌ |
+| Session | activity-driven → wrong shape | ❌ |
+| Sliding-join | for joins only | ❌ |
+
+> Default: **hopping** with the parameters below for option A. Switch
+> to `SlidingWindows.ofTimeDifferenceAndGrace(...)` if option B is
+> chosen.
+
+### Parameters (option A)
+
 - Type: hopping.
-- Size: 20 bars (20 min on 1m OHLC) → SMA20 / EMA20. RSI uses 14 bars, same window with internal truncation.
+- Size: 20 bars (20 min on 1m OHLC) → SMA20 / EMA20. RSI uses 14 bars,
+  same window with internal truncation.
 - Advance: 1 bar (1 min) → one emission per symbol per minute.
 - Grace: 30 s.
 - Retention: 2× window size.
+
+### Emission policy
+
+`crypto.indicator.snapshot` consumers (UI, alerts) typically want a
+**continuously updated latest value** rather than per-window finals, so
+**do not** chain `suppress` here by default — let every advance emit.
+If a separate "indicator at bar-close" feed is wanted later, fork a
+suppressed sibling topic instead of changing this one.
 
 ## Time semantics
 
@@ -114,7 +145,9 @@ builder.stream("crypto.ohlc.1m", ...)
 
 ## Open decisions
 
-- [ ] Input source — bars (A, propose) vs ticks (B).
+- [ ] Input source — bars (A, propose) vs ticks (B). Choice also pins
+      the window type (A → hopping, B → sliding-aggregation; see
+      *Window choice*).
 - [ ] One event per indicator (separate topics) vs one snapshot with all of them (single topic, propose).
 - [ ] Indicator set — SMA + EMA + RSI minimum; MACD / Bollinger optional.
 - [ ] Window sizes — 20 only, or 20 / 50 / 200 combos?
