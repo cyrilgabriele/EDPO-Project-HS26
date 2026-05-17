@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <title>fx-rate-service · CryptoFlow</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      line-height: 1.6;
+    }
+
+    header {
+      background: #1a1f2e;
+      border-bottom: 2px solid #3b82f6;
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+    }
+    header h1 { font-size: 1.4rem; color: #60a5fa; font-weight: 700; }
+    header .badge {
+      font-size: 0.75rem;
+      background: #1e3a5f;
+      color: #93c5fd;
+      border: 1px solid #3b82f6;
+      border-radius: 999px;
+      padding: 0.15rem 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    .notice {
+      max-width: 1100px;
+      margin: 1.25rem auto 0;
+      padding: 0 2rem;
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+    .notice strong { color: #93c5fd; }
+
+    main { max-width: 1100px; margin: 1rem auto; padding: 0 2rem 2rem; display: grid; gap: 1.5rem; }
+
+    section {
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+    }
+
+    .live-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #2d3748;
+    }
+    .live-header h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #93c5fd;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .live-meta { font-size: 0.8rem; color: #64748b; display: flex; align-items: center; gap: 1rem; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
+           display: inline-block; box-shadow: 0 0 6px #22c55e; }
+    .dot.red { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    thead th {
+      text-align: left;
+      color: #64748b;
+      font-weight: 600;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.4rem 0.75rem;
+      border-bottom: 1px solid #2d3748;
+    }
+    tbody tr { border-bottom: 1px solid #1e2736; transition: background 0.15s; }
+    tbody tr:hover { background: #1e2736; }
+    tbody td { padding: 0.45rem 0.75rem; color: #cbd5e1; }
+    tbody td.mono { font-family: monospace; }
+    tbody td.pair  { font-weight: 700; color: #60a5fa; font-family: monospace; }
+    tbody td.rate  { color: #34d399; font-family: monospace; font-weight: 600; }
+    tbody td.part  { color: #a78bfa; font-family: monospace; }
+    tbody td.src   { font-family: monospace; color: #94a3b8; }
+
+    .empty-row td { color: #4a5568; text-align: center; padding: 2rem; }
+
+    .info-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+    .chip {
+      font-size: 0.75rem;
+      font-family: monospace;
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 0.375rem;
+      padding: 0.25rem 0.6rem;
+      color: #94a3b8;
+    }
+    .chip strong { color: #e2e8f0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>fx-rate-service</h1>
+  <span class="badge">Reference Data Ingestion</span>
+  <span class="badge" style="margin-left:auto; font-size:0.7rem; background:#0f1117; border-color:#2d3748; color:#4a5568">
+    CryptoFlow · EDPO FS2026
+  </span>
+</header>
+
+<p class="notice">
+  Polls a public FX provider on a timer, filters and translates the response, and publishes one <strong>FxRate</strong> per currency pair to the compacted topic <strong>reference.fx.rate</strong>. The compacted topic <em>is</em> the cache; downstream services materialise it as a GlobalKTable (see ADR-0029).
+</p>
+
+<main>
+
+  <section>
+    <div class="live-header">
+      <h2>Recently Published FxRate Events</h2>
+      <div class="live-meta">
+        <span><span id="dot" class="dot red"></span>&nbsp;<span id="status-text">connecting…</span></span>
+        <span>Updated: <span id="last-updated">–</span></span>
+        <span>Refresh: 2 s</span>
+      </div>
+    </div>
+
+    <div id="info-chips" class="info-chips">
+      <span class="chip">topic: <strong>loading…</strong></span>
+    </div>
+    <br>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Pair</th>
+          <th>Rate (quote per 1 base)</th>
+          <th>Source</th>
+          <th>Partition</th>
+          <th>Offset</th>
+          <th>ValidFrom</th>
+          <th>Published</th>
+        </tr>
+      </thead>
+      <tbody id="events-body">
+        <tr class="empty-row"><td colspan="7">Waiting for events…</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<script>
+  const REFRESH_MS = 2000;
+
+  function fmt(iso) {
+    if (!iso) return '–';
+    const d = new Date(iso);
+    return d.toLocaleTimeString('en-GB', { hour12: false }) + '.' +
+           String(d.getMilliseconds()).padStart(3, '0');
+  }
+
+  async function refresh() {
+    try {
+      const res = await fetch('/api/dashboard');
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+
+      const chips = document.getElementById('info-chips');
+      chips.innerHTML =
+        `<span class="chip">topic: <strong>${data.topic}</strong></span>` +
+        `<span class="chip">provider: <strong>${data.provider?.name ?? '?'}</strong></span>` +
+        `<span class="chip">base: <strong>${data.baseCurrency}</strong></span>` +
+        (data.quoteCurrencies || []).map(c =>
+          `<span class="chip">quote: <strong>${c}</strong></span>`
+        ).join('') +
+        `<span class="chip">poll: <strong>${data.pollInterval}</strong></span>`;
+
+      document.getElementById('dot').className = 'dot';
+      document.getElementById('status-text').textContent = 'live';
+      document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('en-GB');
+
+      const tbody = document.getElementById('events-body');
+      const events = data.recentEvents || [];
+      if (events.length === 0) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No events yet, waiting for first poll…</td></tr>';
+        return;
+      }
+      tbody.innerHTML = events.map(e => `
+        <tr>
+          <td class="pair">${e.pair}</td>
+          <td class="rate">${Number(e.rate).toLocaleString('en-US', {minimumFractionDigits: 4, maximumFractionDigits: 8})}</td>
+          <td class="src">${e.source}</td>
+          <td class="part">${e.partition}</td>
+          <td class="mono">${e.offset}</td>
+          <td class="mono">${fmt(e.validFromAt)}</td>
+          <td class="mono">${fmt(e.publishedAt)}</td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      document.getElementById('dot').className = 'dot red';
+      document.getElementById('status-text').textContent = 'offline';
+    }
+  }
+
+  refresh();
+  setInterval(refresh, REFRESH_MS);
+</script>
+
+</body>
+</html>

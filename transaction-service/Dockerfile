@@ -15,6 +15,7 @@ COPY portfolio-service/pom.xml portfolio-service/
 COPY transaction-service/pom.xml transaction-service/
 COPY user-service/pom.xml user-service/
 COPY onboarding-service/pom.xml onboarding-service/
+COPY fx-rate-service/pom.xml fx-rate-service/
 
 # Pre-download dependencies (cached as a layer)
 RUN mvn dependency:go-offline -pl transaction-service,shared-events -am -q

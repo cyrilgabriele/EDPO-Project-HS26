@@ -158,11 +158,11 @@ These are configurable; pick a starting point, change as needed.
 - **FX poll cadence:** 5 minutes.
 - **OHLC intervals:** 1 m, 5 m, 1 h.
 - **OHLC grace periods:** per `05-ohlc-candles.md`.
-- **Schema Registry:** `http://localhost:8081` (Confluent image in `docker-compose`).
+- **Schema Registry:** `http://schema-registry:8081` inside the Docker network, `http://localhost:8090` from the host (Confluent image in `docker-compose`; host port 8081 is taken by market-data-service).
 
 ## End-to-end verification
 
-1. **Schema Registry up:** `curl http://localhost:8081/subjects` returns `[]` then grows after first publishes.
+1. **Schema Registry up:** `curl http://localhost:8090/subjects` returns `[]` then grows after first publishes.
 2. **fx-rate-service publishes:** within one poll interval after boot, `kafka-console-consumer --topic reference.fx.rate --from-beginning --property print.key=true` shows one record per supported pair (`USDCHF`, `USDEUR`, `USDGBP`, plus `USDUSD` if generated). Restart the broker; consumer with `--from-beginning` still sees the rates (compaction-as-cache).
 3. **Display Currency lifecycle:** create user `alice` → consume `user.display-currency` keyed by `alice` showing `displayCurrency='USD'`. `PATCH /users/alice/display-currency` with body `{"displayCurrency":"CHF"}` → new record on the topic, same key, new value.
 4. **LocalizedPrice fan-out:** subscribe to `crypto.price.localized`; observe each event carries `prices` map with all supported currencies, and that the USD value matches the source `priceUsdt`.

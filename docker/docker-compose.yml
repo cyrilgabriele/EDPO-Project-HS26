@@ -58,17 +58,51 @@ services:
       retries: 10
       start_period: 20s
 
+  # ── Confluent Schema Registry ───────────────────────────────────────────────
+  #
+  # Hosts Avro contracts for derived stream events introduced by ADR-0032.
+  # The platform-wide JSON default (ADR-0003) still applies to existing topics;
+  # registered Avro is used by the FX, Localized Price, Portfolio Value, OHLC
+  # and User Display Currency contracts.
+  #
+  # Listener layout:
+  #   inside Docker network: http://schema-registry:8081
+  #   from host:             http://localhost:8090
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.0
+    hostname: schema-registry
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8090:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas
+      SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: backward
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/subjects"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
   # ── Kafka UI (monitoring dashboard) ─────────────────────────────────────────
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     depends_on:
       kafka:
         condition: service_healthy
+      schema-registry:
+        condition: service_healthy
     ports:
       - "8080:8080"   # http://localhost:8080
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
 
   # ── PostgreSQL (one instance, per-service databases) ────────────────────────
   #
@@ -121,6 +155,28 @@ services:
       - pgadmin-data:/var/lib/pgadmin
       - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
       - ./pgadmin/pgpass:/pgadmin4/pgpass:ro
+
+  # ── FX Rate Service (Reference Data context, see ADR-0029) ─────────────────
+  fx-rate-service:
+    build:
+      context: ..
+      dockerfile: fx-rate-service/Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    ports:
+      - "8089:8089"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+      FX_PROVIDER_NAME: ${FX_PROVIDER_NAME:-frankfurter.dev}
+      FX_PROVIDER_URL: ${FX_PROVIDER_URL:-https://api.frankfurter.dev/v1/latest}
+      FX_BASE_CURRENCY: ${FX_BASE_CURRENCY:-USD}
+      FX_QUOTE_CURRENCIES: ${FX_QUOTE_CURRENCIES:-EUR,CHF,GBP}
+      FX_POLL_INTERVAL: ${FX_POLL_INTERVAL:-PT5M}
+      FX_MAX_RESPONSE_AGE: ${FX_MAX_RESPONSE_AGE:-P7D}
 
   # ── Market Data Service ─────────────────────────────────────────────────────
   market-data-service:
@@ -240,9 +296,13 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      schema-registry:
+        condition: service_healthy
     ports:
       - "8084:8084"
     environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_service_db
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-cryptoflow}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-cryptoflow}

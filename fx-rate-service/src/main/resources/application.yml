@@ -1,0 +1,46 @@
+server:
+  port: 8089
+
+spring:
+  application:
+    name: fx-rate-service
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      properties:
+        schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8090}
+        enable.idempotence: true
+
+# FX provider configuration.
+# Default: api.frankfurter.dev v1 (ECB-based daily rates, no API key required).
+# Documented alternative: exchangerate.host (requires an access_key on the free tier).
+fx:
+  provider:
+    name: ${FX_PROVIDER_NAME:frankfurter.dev}
+    url: ${FX_PROVIDER_URL:https://api.frankfurter.dev/v1/latest}
+  base-currency: ${FX_BASE_CURRENCY:USD}
+  # ISO-4217 codes (excluding the base, which is implicit)
+  quote-currencies: ${FX_QUOTE_CURRENCIES:EUR,CHF,GBP}
+  poll-interval: ${FX_POLL_INTERVAL:PT5M}
+  # Responses older than this are dropped as stale.
+  # ECB publishes once per business day, so weekends and holidays can leave the
+  # last published date several days behind. 7 days covers the worst case.
+  max-response-age: ${FX_MAX_RESPONSE_AGE:P7D}
+
+reference:
+  kafka:
+    topic:
+      fx-rate: reference.fx.rate
+      fx-rate-partitions: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

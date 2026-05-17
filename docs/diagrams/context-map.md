@@ -114,4 +114,4 @@ graph TB
 - `onboarding-service` deploys the onboarding BPMN, while `transaction-service` deploys and runs the order workflow.
 - `Camunda` coordinates the `userOnboarding` and `placeOrder` flows across the participating services.
 - Compensation between `user-service` and `portfolio-service` is handled asynchronously through Kafka topics.
-- Schema Registry (`http://localhost:8081`) is part of the Kafka platform, not shown in the context diagrams; it is the runtime contract surface for all Avro topics introduced by ADRs 0028 through 0032.
+- Schema Registry (`http://schema-registry:8081` inside the Docker network, `http://localhost:8090` from the host) is part of the Kafka platform, not shown in the context diagrams; it is the runtime contract surface for all Avro topics introduced by ADRs 0028 through 0032.

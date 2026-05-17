@@ -33,7 +33,7 @@ public class KafkaTopicConfig {
     /**
      * Compacted topic: only the latest event per userId (key) is retained.
      * Consumers can reconstruct the full set of confirmed users by reading
-     * from the beginning — even after the 1-hour dev retention window has passed.
+     * from the beginning, even after the 1-hour dev retention window has passed.
      */
     @Bean
     public NewTopic userConfirmedTopic(
@@ -41,6 +41,21 @@ public class KafkaTopicConfig {
     ) {
         return TopicBuilder.name(topicName)
             .partitions(3)
+            .replicas(1)
+            .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT)
+            .build();
+    }
+
+    /**
+     * Compacted topic for the per-user Display Currency (ADR-0028). Keyed by
+     * userId. Materialised as a KTable by portfolio-service and transaction-service.
+     */
+    @Bean
+    public NewTopic userDisplayCurrencyTopic(
+        @Value("${crypto.kafka.topic.user-display-currency}") String topicName
+    ) {
+        return TopicBuilder.name(topicName)
+            .partitions(1)
             .replicas(1)
             .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT)
             .build();

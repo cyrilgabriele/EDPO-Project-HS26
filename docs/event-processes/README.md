@@ -69,7 +69,7 @@ Drawn from `lab11-yellingapp`, `lab12Part1-cryptosentiment`, `lab12Part2-eyeTrac
 
 ## Resolved cross-cutting decision: serialization
 
-Resolved as **option B** by [ADR-0032](../adrs/0032_avro_schema_registry_for_derived_events.md). Existing JSON topics stay JSON; new derived topics (`reference.fx.rate`, `crypto.price.localized`, `portfolio.value.updated`, `crypto.ohlc.*`, `crypto.indicator.*`, `user.display-currency`) use Avro with Confluent Schema Registry. `schema-registry` is added to `docker/docker-compose` on `http://localhost:8081`. ADR-0022's registryless Avro for market-scout topics is grandfathered.
+Resolved as **option B** by [ADR-0032](../adrs/0032_avro_schema_registry_for_derived_events.md). Existing JSON topics stay JSON; new derived topics (`reference.fx.rate`, `crypto.price.localized`, `portfolio.value.updated`, `crypto.ohlc.*`, `crypto.indicator.*`, `user.display-currency`) use Avro with Confluent Schema Registry. `schema-registry` is added to `docker/docker-compose`, reachable at `http://schema-registry:8081` inside the Docker network and `http://localhost:8090` from the host. ADR-0022's registryless Avro for market-scout topics is grandfathered.
 
 ## A scope is ready for implementation when
 

@@ -20,7 +20,7 @@ These contracts cross service ownership boundaries. ADR-0022's registryless appr
 
 ## Decision
 
-Adopt **Avro + Confluent Schema Registry** for the five derived event types listed above. Add a `schema-registry` service (Confluent image) to `docker/docker-compose.yml`, exposed on `http://localhost:8081`. Producers and consumers use `KafkaAvroSerializer` / `KafkaAvroDeserializer` configured against `schema.registry.url`.
+Adopt **Avro + Confluent Schema Registry** for the five derived event types listed above. Add a `schema-registry` service (Confluent image) to `docker/docker-compose.yml`. Inside the Docker network it is reachable at `http://schema-registry:8081`; from the host it is published on `http://localhost:8090` (host port 8081 was already taken by market-data-service). Producers and consumers use `KafkaAvroSerializer` / `KafkaAvroDeserializer` configured against `schema.registry.url`.
 
 Existing topics keep their current serialization:
 

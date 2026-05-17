@@ -1,7 +1,9 @@
+# Stage 1: Build (Maven + JDK 21)
 FROM maven:3.9-eclipse-temurin-21-alpine AS build
 
 WORKDIR /workspace
 
+# Copy parent and module POMs first so dependency layer is cached separately
 COPY pom.xml .
 COPY shared-events/pom.xml shared-events/
 COPY market-data-service/pom.xml market-data-service/
@@ -13,24 +15,24 @@ COPY user-service/pom.xml user-service/
 COPY onboarding-service/pom.xml onboarding-service/
 COPY fx-rate-service/pom.xml fx-rate-service/
 
-RUN mvn dependency:go-offline -pl market-order-scout-service,shared-events -am -q
+RUN mvn dependency:go-offline -pl fx-rate-service,shared-events -am -q
 
+# Copy source
 COPY shared-events/src shared-events/src
-COPY market-order-scout-service/src market-order-scout-service/src
+COPY fx-rate-service/src fx-rate-service/src
 
-RUN mvn package -pl market-order-scout-service -am -DskipTests -q
+RUN mvn package -pl fx-rate-service -am -DskipTests -q
 
+# Stage 2: Runtime (JRE 21 slim)
 FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache libstdc++
+COPY --from=build /workspace/fx-rate-service/target/*.jar app.jar
 
-COPY --from=build /workspace/market-order-scout-service/target/*.jar app.jar
-
-EXPOSE 8086
+EXPOSE 8089
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-    CMD wget -qO- http://localhost:8086/actuator/health 2>/dev/null | grep -q '"status":"UP"' || exit 1
+    CMD wget -qO- http://localhost:8089/actuator/health 2>/dev/null | grep -q '"status":"UP"' || exit 1
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

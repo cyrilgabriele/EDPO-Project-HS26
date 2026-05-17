@@ -11,6 +11,7 @@ COPY portfolio-service/pom.xml portfolio-service/
 COPY transaction-service/pom.xml transaction-service/
 COPY user-service/pom.xml user-service/
 COPY onboarding-service/pom.xml onboarding-service/
+COPY fx-rate-service/pom.xml fx-rate-service/
 
 RUN mvn dependency:go-offline -pl market-partial-book-ingestion-service,shared-events -am -q
 
