@@ -22,6 +22,10 @@ spring:
     consumer:
       group-id: portfolio-service-group
       auto-offset-reset: earliest
+    properties:
+      # Confluent Schema Registry endpoint for Avro consumers (ADR-0032).
+      # Inside the Docker network: http://schema-registry:8081 · from host: http://localhost:8090
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://schema-registry:8081}
 
 camunda:
   client:
@@ -41,6 +45,8 @@ crypto:
       portfolio-compensation: crypto.portfolio.compensation
       user-compensation: crypto.user.compensation
       order-approved: transaction.order.approved
+      fx-rate: reference.fx.rate
+      user-display-currency: user.display-currency
 
 management:
   endpoints:

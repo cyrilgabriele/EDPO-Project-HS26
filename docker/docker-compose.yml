@@ -234,10 +234,13 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      schema-registry:
+        condition: service_healthy
     ports:
       - "8082:8082"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/portfolio_service_db
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-cryptoflow}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-cryptoflow}
