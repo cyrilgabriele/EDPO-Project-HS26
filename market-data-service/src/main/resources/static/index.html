@@ -162,6 +162,53 @@
     }
     .chart-stats strong { color: #e2e8f0; font-family: monospace; }
 
+    /* Coin metadata info panel (filled from the stream-globalKTable join) */
+    .coin-panel {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.85rem 1rem;
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .coin-panel img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #1a1f2e;
+    }
+    .coin-panel .coin-info { display: flex; flex-direction: column; gap: 0.15rem; }
+    .coin-panel .coin-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .coin-panel .coin-pair {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      font-family: monospace;
+    }
+    .coin-panel .coin-rank {
+      margin-left: auto;
+      font-size: 0.7rem;
+      color: #93c5fd;
+      background: #1e3a5f;
+      border: 1px solid #3b82f6;
+      border-radius: 999px;
+      padding: 0.15rem 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .coin-panel .coin-meta-note {
+      font-size: 0.7rem;
+      color: #4a5568;
+      font-style: italic;
+    }
+
     #chart-container {
       width: 100%;
       height: 480px;
@@ -221,6 +268,20 @@
         <span>Bars: <strong id="bar-count">0</strong></span>
         <span>Last close: <strong id="last-close">–</strong></span>
         <span>Δ%: <strong id="last-change">–</strong></span>
+      </div>
+    </div>
+
+    <div id="coin-panel" class="coin-panel" style="display:none">
+      <img id="coin-image" src="" alt="">
+      <div class="coin-info">
+        <div class="coin-name" id="coin-name">–</div>
+        <div class="coin-pair" id="coin-pair">–</div>
+      </div>
+      <span class="coin-rank" id="coin-rank">–</span>
+    </div>
+    <div id="coin-panel-empty" class="coin-panel" style="display:none">
+      <div class="coin-info">
+        <span class="coin-meta-note">No coin metadata yet for this symbol. Waiting for the next enriched bar to arrive…</span>
       </div>
     </div>
 
@@ -346,6 +407,30 @@
 
   let lastHistorySnapshot = {};
 
+  function renderCoinPanel(latestBar) {
+    const panel = document.getElementById('coin-panel');
+    const emptyPanel = document.getElementById('coin-panel-empty');
+    if (!latestBar || !latestBar.name) {
+      panel.style.display = 'none';
+      emptyPanel.style.display = 'flex';
+      return;
+    }
+    emptyPanel.style.display = 'none';
+    panel.style.display = 'flex';
+    const img = document.getElementById('coin-image');
+    if (latestBar.imageUrl) {
+      img.src = latestBar.imageUrl;
+      img.style.display = '';
+    } else {
+      img.style.display = 'none';
+    }
+    document.getElementById('coin-name').textContent = latestBar.name;
+    const pairText = (latestBar.baseAsset || '–') + ' / ' + (latestBar.quoteAsset || '–');
+    document.getElementById('coin-pair').textContent = pairText + '  (' + latestBar.symbol + ')';
+    const rank = latestBar.marketCapRank;
+    document.getElementById('coin-rank').textContent = rank ? 'Market Cap #' + rank : 'unranked';
+  }
+
   function renderChartFromCache() {
     if (!candleSeries) return;
     const key = selectedSymbol + '@' + selectedInterval;
@@ -358,8 +443,10 @@
       document.getElementById('bar-count').textContent = '0';
       document.getElementById('last-close').textContent = '–';
       document.getElementById('last-change').textContent = '–';
+      renderCoinPanel(null);
       return;
     }
+    renderCoinPanel(bars[bars.length - 1]);
     const candleData = bars.map(b => ({
       time: Math.floor(new Date(b.windowStart).getTime() / 1000),
       open: Number(b.open),

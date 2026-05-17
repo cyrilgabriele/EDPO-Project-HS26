@@ -14,6 +14,7 @@ COPY transaction-service/pom.xml transaction-service/
 COPY user-service/pom.xml user-service/
 COPY onboarding-service/pom.xml onboarding-service/
 COPY fx-rate-service/pom.xml fx-rate-service/
+COPY coin-metadata-service/pom.xml coin-metadata-service/
 
 RUN mvn dependency:go-offline -pl fx-rate-service,shared-events -am -q
 

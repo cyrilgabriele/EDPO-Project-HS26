@@ -1,6 +1,7 @@
 package ch.unisg.cryptoflow.marketdata.streams;
 
 import ch.unisg.cryptoflow.events.CryptoPriceUpdatedEvent;
+import ch.unisg.cryptoflow.events.avro.CoinMetadata;
 import ch.unisg.cryptoflow.events.avro.Ohlc;
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
@@ -11,6 +12,7 @@ import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.Consumed;
+import org.apache.kafka.streams.kstream.GlobalKTable;
 import org.apache.kafka.streams.kstream.Grouped;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Materialized;
@@ -69,6 +71,9 @@ public class OhlcStreamConfig {
     @Value("${crypto.kafka.topic.ohlc-1h}")
     private String ohlc1hTopic;
 
+    @Value("${crypto.kafka.topic.crypto-metadata}")
+    private String cryptoMetadataTopic;
+
     @Value("${ohlc.windows.one-minute.size}")
     private Duration oneMinuteSize;
 
@@ -120,20 +125,35 @@ public class OhlcStreamConfig {
     }
 
     @Bean
+    public Serde<CoinMetadata> coinMetadataSerde() {
+        SpecificAvroSerde<CoinMetadata> serde = new SpecificAvroSerde<>();
+        serde.configure(
+                Map.of(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl),
+                false);
+        return serde;
+    }
+
+    @Bean
     public KStream<String, CryptoPriceUpdatedEvent> ohlcTopology(
             StreamsBuilder builder,
             Serde<CryptoPriceUpdatedEvent> priceTickSerde,
-            Serde<Ohlc> ohlcSerde) {
+            Serde<Ohlc> ohlcSerde,
+            Serde<CoinMetadata> coinMetadataSerde) {
+
+        // Pattern 13: stream-table join. Materialise the slow-moving coin metadata
+        // topic as a GlobalKTable so every StreamThread can do the lookup locally
+        // without co-partitioning.
+        GlobalKTable<String, CoinMetadata> metadata = builder.globalTable(
+                cryptoMetadataTopic,
+                Consumed.with(Serdes.String(), coinMetadataSerde));
 
         KStream<String, CryptoPriceUpdatedEvent> ticks = builder.stream(
                 priceRawTopic,
                 Consumed.with(Serdes.String(), priceTickSerde));
 
-        ticks.peek((k, v) -> {}); // keep the source as a single branch for the three siblings below
-
-        buildIntervalPipeline(ticks, oneMinuteSize, oneMinuteGrace, 60, "ohlc-1m-store", ohlc1mTopic, priceTickSerde, ohlcSerde);
-        buildIntervalPipeline(ticks, fiveMinutesSize, fiveMinutesGrace, 300, "ohlc-5m-store", ohlc5mTopic, priceTickSerde, ohlcSerde);
-        buildIntervalPipeline(ticks, oneHourSize, oneHourGrace, 3600, "ohlc-1h-store", ohlc1hTopic, priceTickSerde, ohlcSerde);
+        buildIntervalPipeline(ticks, oneMinuteSize, oneMinuteGrace, 60, "ohlc-1m-store", ohlc1mTopic, priceTickSerde, ohlcSerde, metadata);
+        buildIntervalPipeline(ticks, fiveMinutesSize, fiveMinutesGrace, 300, "ohlc-5m-store", ohlc5mTopic, priceTickSerde, ohlcSerde, metadata);
+        buildIntervalPipeline(ticks, oneHourSize, oneHourGrace, 3600, "ohlc-1h-store", ohlc1hTopic, priceTickSerde, ohlcSerde, metadata);
 
         return ticks;
     }
@@ -146,7 +166,8 @@ public class OhlcStreamConfig {
             String storeName,
             String outputTopic,
             Serde<CryptoPriceUpdatedEvent> priceTickSerde,
-            Serde<Ohlc> ohlcSerde) {
+            Serde<Ohlc> ohlcSerde,
+            GlobalKTable<String, CoinMetadata> metadata) {
 
         ticks
                 .groupByKey(Grouped.with(Serdes.String(), priceTickSerde))
@@ -171,6 +192,25 @@ public class OhlcStreamConfig {
                     bar.setWindowEnd(Instant.ofEpochMilli(windowedKey.window().end()));
                     return KeyValue.pair(windowedKey.key(), bar);
                 })
+                // Stream-globalKTable left join: each closed bar gets enriched with
+                // coin metadata when available; bars whose symbol has not been
+                // seen yet in the metadata topic still flow through with null
+                // metadata fields.
+                .leftJoin(metadata,
+                        (key, bar) -> key,
+                        OhlcStreamConfig::enrichWithMetadata)
                 .to(outputTopic, Produced.with(Serdes.String(), ohlcSerde));
+    }
+
+    private static Ohlc enrichWithMetadata(Ohlc bar, CoinMetadata meta) {
+        if (meta != null) {
+            bar.setBaseAsset(meta.getBaseAsset());
+            bar.setQuoteAsset(meta.getQuoteAsset());
+            bar.setName(meta.getName());
+            bar.setImageUrl(meta.getImageUrl());
+            bar.setMarketCapRank(meta.getMarketCapRank());
+            bar.setCategories(meta.getCategories());
+        }
+        return bar;
     }
 }

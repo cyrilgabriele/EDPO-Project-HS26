@@ -2,7 +2,7 @@
   "type": "record",
   "name": "Ohlc",
   "namespace": "ch.unisg.cryptoflow.events.avro",
-  "doc": "Closed OHLC bar for a symbol over a tumbling event-time window, USDT-denominated. Emitted after suppress(untilWindowCloses). Published to crypto.ohlc.{1m,5m,1h}, keyed by symbol. See scope 05 and ADR-0031.",
+  "doc": "Closed OHLC bar for a symbol over a tumbling event-time window, USDT-denominated. Emitted after suppress(untilWindowCloses) and enriched with coin metadata via a stream-globalKTable join (pattern 13). Published to crypto.ohlc.{1m,5m,1h}, keyed by symbol. See scope 05, ADR-0031, and the CoinMetadata reference topic.",
   "fields": [
     { "name": "symbol", "type": "string" },
     { "name": "intervalSec", "type": "int", "doc": "Window size in seconds: 60, 300 or 3600" },
@@ -56,6 +56,16 @@
         "scale": 18
       }
     },
-    { "name": "tickCount", "type": "int", "doc": "Number of source ticks aggregated into this window (volume proxy; see ADR-0031)" }
+    { "name": "tickCount", "type": "int", "doc": "Number of source ticks aggregated into this window (volume proxy; see ADR-0031)" },
+    { "name": "baseAsset", "type": ["null", "string"], "default": null, "doc": "Filled by the stream-table join with CoinMetadata" },
+    { "name": "quoteAsset", "type": ["null", "string"], "default": null },
+    { "name": "name", "type": ["null", "string"], "default": null, "doc": "Display name of the base asset" },
+    { "name": "imageUrl", "type": ["null", "string"], "default": null },
+    { "name": "marketCapRank", "type": ["null", "int"], "default": null },
+    {
+      "name": "categories",
+      "type": ["null", { "type": "array", "items": "string" }],
+      "default": null
+    }
   ]
 }

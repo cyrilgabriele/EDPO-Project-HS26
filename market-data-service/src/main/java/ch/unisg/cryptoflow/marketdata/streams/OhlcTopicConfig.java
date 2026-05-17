@@ -42,4 +42,19 @@ public class OhlcTopicConfig {
                 .configs(Map.of(TopicConfig.RETENTION_MS_CONFIG, String.valueOf(365L * 24 * 3600 * 1000)))
                 .build();
     }
+
+    /**
+     * Backup declaration of reference.crypto.metadata so the OHLC streams app
+     * can boot the GlobalKTable even if coin-metadata-service starts later.
+     * coin-metadata-service declares the same topic; Spring KafkaAdmin treats
+     * the create as idempotent.
+     */
+    @Bean
+    public NewTopic cryptoMetadataTopic(@Value("${crypto.kafka.topic.crypto-metadata}") String name) {
+        return TopicBuilder.name(name)
+                .partitions(1)
+                .replicas(1)
+                .configs(Map.of(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT))
+                .build();
+    }
 }

@@ -35,6 +35,7 @@ crypto:
       ohlc-1m: crypto.ohlc.1m
       ohlc-5m: crypto.ohlc.5m
       ohlc-1h: crypto.ohlc.1h
+      crypto-metadata: reference.crypto.metadata
 
 # Scope-05 OHLC Kafka Streams app (see ADR-0031, event-processes/05-ohlc-candles.md).
 # Source: crypto.price.raw (JSON). Outputs Avro Ohlc, one bar per (symbol, window) after window close.

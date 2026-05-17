@@ -156,6 +156,28 @@ services:
       - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
       - ./pgadmin/pgpass:/pgadmin4/pgpass:ro
 
+  # ── Coin Metadata Service (Reference Data context) ─────────────────────────
+  # Polls CoinGecko on a long timer and publishes CoinMetadata to the compacted
+  # topic reference.crypto.metadata. The OHLC streams app materialises it as a
+  # GlobalKTable for stream-table joins (pattern 13).
+  coin-metadata-service:
+    build:
+      context: ..
+      dockerfile: coin-metadata-service/Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    ports:
+      - "8088:8088"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+      COIN_PROVIDER_URL: ${COIN_PROVIDER_URL:-https://api.coingecko.com/api/v3/coins/markets}
+      COIN_PROVIDER_VS_CURRENCY: ${COIN_PROVIDER_VS_CURRENCY:-usd}
+      COIN_POLL_INTERVAL: ${COIN_POLL_INTERVAL:-PT24H}
+
   # ── FX Rate Service (Reference Data context, see ADR-0029) ─────────────────
   fx-rate-service:
     build:

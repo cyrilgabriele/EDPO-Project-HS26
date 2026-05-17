@@ -28,6 +28,7 @@
         <module>user-service</module>
         <module>onboarding-service</module>
         <module>fx-rate-service</module>
+        <module>coin-metadata-service</module>
     </modules>
 
     <properties>

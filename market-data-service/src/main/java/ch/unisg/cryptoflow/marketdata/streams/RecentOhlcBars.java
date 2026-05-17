@@ -20,7 +20,9 @@ import java.util.concurrent.ConcurrentSkipListMap;
  *
  * <p>Bars are keyed inside each series by their event-time {@code windowStart},
  * so re-reading the topic on restart (per-instance group id) replaces rather
- * than duplicates entries.
+ * than duplicates entries. The metadata fields are filled in by the
+ * stream-globalKTable join in {@link OhlcStreamConfig} and remain null for
+ * older bars emitted before that join was wired up.
  */
 @Component
 public class RecentOhlcBars {
@@ -43,6 +45,12 @@ public class RecentOhlcBars {
                 bar.getLow(),
                 bar.getClose(),
                 bar.getTickCount(),
+                bar.getBaseAsset(),
+                bar.getQuoteAsset(),
+                bar.getName(),
+                bar.getImageUrl(),
+                bar.getMarketCapRank(),
+                bar.getCategories(),
                 Instant.now());
 
         latestPerPair.put(key, entry);
@@ -82,6 +90,12 @@ public class RecentOhlcBars {
             BigDecimal low,
             BigDecimal close,
             int tickCount,
+            String baseAsset,
+            String quoteAsset,
+            String name,
+            String imageUrl,
+            Integer marketCapRank,
+            List<String> categories,
             Instant receivedAt) {
     }
 }
