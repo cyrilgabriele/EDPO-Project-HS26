@@ -58,7 +58,8 @@ public class ProducerDashboardController {
                 "oneMinute", ohlc1mTopic,
                 "fiveMinutes", ohlc5mTopic,
                 "oneHour", ohlc1hTopic));
-        body.put("ohlcBars", recentOhlcBars.snapshot());
+        body.put("ohlcBars", recentOhlcBars.latestSnapshot());
+        body.put("ohlcHistory", recentOhlcBars.historySnapshot());
         return body;
     }
 }

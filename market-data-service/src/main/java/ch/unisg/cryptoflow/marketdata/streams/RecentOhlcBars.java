@@ -6,24 +6,34 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
- * In-memory snapshot of the latest closed OHLC bar per (symbol, intervalSec).
- * Updated by the dashboard's OHLC consumer; read by the dashboard endpoint.
- * Not part of the event pipeline, purely an observability aid for the static
- * demo page.
+ * In-memory rolling history of closed OHLC bars per (symbol, intervalSec).
+ * Bounded to {@link #HISTORY_LIMIT} entries per pair so the dashboard can
+ * render a candlestick chart without unbounded memory growth.
+ *
+ * <p>Bars are keyed inside each series by their event-time {@code windowStart},
+ * so re-reading the topic on restart (per-instance group id) replaces rather
+ * than duplicates entries.
  */
 @Component
 public class RecentOhlcBars {
 
-    private final Map<String, Entry> latest = new ConcurrentHashMap<>();
+    private static final int HISTORY_LIMIT = 200;
+
+    private final Map<String, NavigableMap<Long, Entry>> history = new ConcurrentHashMap<>();
+    private final Map<String, Entry> latestPerPair = new ConcurrentHashMap<>();
 
     public void record(Ohlc bar) {
         String key = bar.getSymbol() + "@" + bar.getIntervalSec();
-        latest.put(key, new Entry(
+        long startMs = bar.getWindowStart().toEpochMilli();
+        Entry entry = new Entry(
                 bar.getSymbol(),
                 bar.getIntervalSec(),
                 bar.getWindowStart(),
@@ -33,15 +43,33 @@ public class RecentOhlcBars {
                 bar.getLow(),
                 bar.getClose(),
                 bar.getTickCount(),
-                Instant.now()));
+                Instant.now());
+
+        latestPerPair.put(key, entry);
+
+        NavigableMap<Long, Entry> series = history.computeIfAbsent(key, k -> new ConcurrentSkipListMap<>());
+        series.put(startMs, entry);
+        while (series.size() > HISTORY_LIMIT) {
+            Long oldest = series.firstKey();
+            if (oldest == null) break;
+            series.remove(oldest);
+        }
     }
 
-    public List<Entry> snapshot() {
-        return latest.values().stream()
+    /** Latest bar per (symbol, interval) for the at-a-glance summary. */
+    public List<Entry> latestSnapshot() {
+        return latestPerPair.values().stream()
                 .sorted(Comparator
                         .comparing(Entry::symbol)
                         .thenComparing(Entry::intervalSec))
                 .toList();
+    }
+
+    /** Full bounded history per "symbol@intervalSec" key, sorted ascending by windowStart. */
+    public Map<String, List<Entry>> historySnapshot() {
+        Map<String, List<Entry>> out = new LinkedHashMap<>();
+        history.forEach((k, v) -> out.put(k, List.copyOf(v.values())));
+        return out;
     }
 
     public record Entry(

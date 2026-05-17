@@ -7,6 +7,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <title>market-data-service · CryptoFlow</title>
+  <script src="https://unpkg.com/lightweight-charts@4.1.4/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -95,27 +96,6 @@
     tbody td.part  { color: #a78bfa; font-family: monospace; }
     tbody td.eid   { font-family: monospace; font-size: 0.75rem; color: #94a3b8; word-break: break-all; min-width: 220px; }
 
-    /* OHLC table specifics */
-    tbody td.interval {
-      font-family: monospace;
-      font-weight: 700;
-      color: #fbbf24;
-      background: #1f1b08;
-      border-radius: 0.3rem;
-      padding: 0.15rem 0.5rem;
-      display: inline-block;
-      font-size: 0.7rem;
-    }
-    tbody td.ohlc { font-family: monospace; }
-    tbody td.ohlc.open  { color: #94a3b8; }
-    tbody td.ohlc.high  { color: #34d399; }
-    tbody td.ohlc.low   { color: #f87171; }
-    tbody td.ohlc.close { color: #c084fc; font-weight: 700; }
-    tbody td.change.up   { color: #34d399; font-family: monospace; font-weight: 700; }
-    tbody td.change.down { color: #f87171; font-family: monospace; font-weight: 700; }
-    tbody td.change.flat { color: #94a3b8; font-family: monospace; }
-    tbody td.window { font-family: monospace; font-size: 0.72rem; color: #94a3b8; }
-
     .empty-row td { color: #4a5568; text-align: center; padding: 2rem; }
 
     .info-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
@@ -129,6 +109,75 @@
       color: #94a3b8;
     }
     .chip strong { color: #e2e8f0; }
+
+    /* Chart controls */
+    .chart-controls {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .chart-controls label {
+      font-size: 0.75rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .chart-controls select {
+      background: #0f1117;
+      color: #e2e8f0;
+      border: 1px solid #2d3748;
+      border-radius: 0.375rem;
+      padding: 0.3rem 0.6rem;
+      font-family: monospace;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .chart-controls select:focus { outline: none; border-color: #3b82f6; }
+    .interval-tabs { display: flex; gap: 0.25rem; }
+    .interval-tab {
+      background: #0f1117;
+      color: #94a3b8;
+      border: 1px solid #2d3748;
+      border-radius: 0.375rem;
+      padding: 0.3rem 0.75rem;
+      font-family: monospace;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .interval-tab:hover { color: #e2e8f0; border-color: #475569; }
+    .interval-tab.active {
+      background: #1e3a5f;
+      color: #93c5fd;
+      border-color: #3b82f6;
+    }
+    .chart-stats {
+      display: flex;
+      gap: 1.5rem;
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+    .chart-stats strong { color: #e2e8f0; font-family: monospace; }
+
+    #chart-container {
+      width: 100%;
+      height: 480px;
+      background: #0f1117;
+      border-radius: 0.5rem;
+      border: 1px solid #2d3748;
+    }
+
+    .chart-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 480px;
+      color: #4a5568;
+      font-size: 0.9rem;
+    }
   </style>
 </head>
 <body>
@@ -143,17 +192,47 @@
 </header>
 
 <p class="notice">
-  Live Kafka events published to <strong>crypto.price.raw</strong> from the Binance WebSocket stream. The producer publishes and forgets. A co-located Kafka Streams app aggregates the same ticks into closed OHLC bars on <strong>crypto.ohlc.1m / 5m / 1h</strong> using event-time tumbling windows with <code>suppress(untilWindowCloses)</code> (see ADR-0031).
+  Live Kafka events published to <strong>crypto.price.raw</strong> from the Binance WebSocket stream. A co-located Kafka Streams app aggregates the same ticks into closed OHLC bars on <strong>crypto.ohlc.1m / 5m / 1h</strong> using event-time tumbling windows with <code>suppress(untilWindowCloses)</code> (see ADR-0031). The chart below re-reads those bars back from Kafka.
 </p>
 
 <main>
 
   <section>
     <div class="live-header">
-      <h2>Live Event Stream</h2>
+      <h2>OHLC Candlestick</h2>
       <div class="live-meta">
         <span><span id="dot" class="dot red"></span>&nbsp;<span id="status-text">connecting…</span></span>
         <span>Updated: <span id="last-updated">–</span></span>
+      </div>
+    </div>
+
+    <div class="chart-controls">
+      <label for="symbol-select">Symbol</label>
+      <select id="symbol-select"></select>
+
+      <label>Interval</label>
+      <div class="interval-tabs" id="interval-tabs">
+        <button class="interval-tab active" data-interval="60">1m</button>
+        <button class="interval-tab" data-interval="300">5m</button>
+        <button class="interval-tab" data-interval="3600">1h</button>
+      </div>
+
+      <div class="chart-stats">
+        <span>Bars: <strong id="bar-count">0</strong></span>
+        <span>Last close: <strong id="last-close">–</strong></span>
+        <span>Δ%: <strong id="last-change">–</strong></span>
+      </div>
+    </div>
+
+    <div id="chart-container">
+      <div class="chart-empty" id="chart-empty">Waiting for closed bars…</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="live-header">
+      <h2>Live Event Stream</h2>
+      <div class="live-meta">
         <span>Interval: 1 s</span>
       </div>
     </div>
@@ -181,44 +260,138 @@
     </table>
   </section>
 
-  <section>
-    <div class="live-header">
-      <h2>Closed OHLC Bars (latest per symbol &amp; interval)</h2>
-      <div class="live-meta">
-        <span id="ohlc-count" style="color:#64748b">–</span>
-      </div>
-    </div>
-
-    <div id="ohlc-chips" class="info-chips">
-      <span class="chip">topics: <strong>loading…</strong></span>
-    </div>
-    <br>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Symbol</th>
-          <th>Interval</th>
-          <th>Window</th>
-          <th>Open</th>
-          <th>High</th>
-          <th>Low</th>
-          <th>Close</th>
-          <th>Δ%</th>
-          <th>Ticks</th>
-          <th>Received</th>
-        </tr>
-      </thead>
-      <tbody id="ohlc-body">
-        <tr class="empty-row"><td colspan="10">No closed bars yet, waiting for first window close + grace…</td></tr>
-      </tbody>
-    </table>
-  </section>
-
 </main>
 
 <script>
   const REFRESH_MS = 1000;
+
+  let chart = null;
+  let candleSeries = null;
+  let volumeSeries = null;
+  let selectedSymbol = null;
+  let selectedInterval = 60;
+  let symbolsInitialised = false;
+
+  function initChart() {
+    const container = document.getElementById('chart-container');
+    container.innerHTML = '';
+    chart = LightweightCharts.createChart(container, {
+      width: container.clientWidth,
+      height: 480,
+      layout: {
+        background: { type: 'solid', color: '#0f1117' },
+        textColor: '#94a3b8',
+        fontFamily: 'Segoe UI, system-ui, sans-serif'
+      },
+      grid: {
+        vertLines: { color: '#1e2736' },
+        horzLines: { color: '#1e2736' }
+      },
+      rightPriceScale: { borderColor: '#2d3748' },
+      timeScale: {
+        borderColor: '#2d3748',
+        timeVisible: true,
+        secondsVisible: false
+      },
+      crosshair: {
+        mode: LightweightCharts.CrosshairMode.Normal,
+        vertLine: { color: '#3b82f6', width: 1, style: 0 },
+        horzLine: { color: '#3b82f6', width: 1, style: 0 }
+      }
+    });
+
+    candleSeries = chart.addCandlestickSeries({
+      upColor: '#34d399',
+      downColor: '#f87171',
+      borderUpColor: '#22c55e',
+      borderDownColor: '#dc2626',
+      wickUpColor: '#22c55e',
+      wickDownColor: '#dc2626'
+    });
+
+    volumeSeries = chart.addHistogramSeries({
+      color: '#1e3a5f',
+      priceFormat: { type: 'volume' },
+      priceScaleId: ''
+    });
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0.85, bottom: 0 }
+    });
+
+    window.addEventListener('resize', () => {
+      if (chart) chart.applyOptions({ width: container.clientWidth });
+    });
+  }
+
+  function ensureSymbols(symbols) {
+    if (symbolsInitialised) return;
+    const sel = document.getElementById('symbol-select');
+    sel.innerHTML = symbols.map(s => `<option value="${s}">${s}</option>`).join('');
+    selectedSymbol = symbols[0];
+    sel.value = selectedSymbol;
+    sel.addEventListener('change', () => {
+      selectedSymbol = sel.value;
+      renderChartFromCache();
+    });
+    document.querySelectorAll('.interval-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.interval-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        selectedInterval = Number(tab.dataset.interval);
+        renderChartFromCache();
+      });
+    });
+    symbolsInitialised = true;
+  }
+
+  let lastHistorySnapshot = {};
+
+  function renderChartFromCache() {
+    if (!candleSeries) return;
+    const key = selectedSymbol + '@' + selectedInterval;
+    const bars = lastHistorySnapshot[key] || [];
+    const empty = document.getElementById('chart-empty');
+    if (empty) empty.remove();
+    if (bars.length === 0) {
+      candleSeries.setData([]);
+      volumeSeries.setData([]);
+      document.getElementById('bar-count').textContent = '0';
+      document.getElementById('last-close').textContent = '–';
+      document.getElementById('last-change').textContent = '–';
+      return;
+    }
+    const candleData = bars.map(b => ({
+      time: Math.floor(new Date(b.windowStart).getTime() / 1000),
+      open: Number(b.open),
+      high: Number(b.high),
+      low: Number(b.low),
+      close: Number(b.close)
+    }));
+    const volumeData = bars.map(b => ({
+      time: Math.floor(new Date(b.windowStart).getTime() / 1000),
+      value: Number(b.tickCount),
+      color: Number(b.close) >= Number(b.open) ? '#1e3a5f' : '#5f1e1e'
+    }));
+    candleSeries.setData(candleData);
+    volumeSeries.setData(volumeData);
+
+    const last = bars[bars.length - 1];
+    const first = bars[0];
+    document.getElementById('bar-count').textContent = bars.length;
+    document.getElementById('last-close').textContent = formatPrice(last.close);
+    const pct = ((Number(last.close) - Number(first.open)) / Number(first.open)) * 100;
+    const lc = document.getElementById('last-change');
+    lc.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+    lc.style.color = pct >= 0 ? '#34d399' : '#f87171';
+  }
+
+  function formatPrice(p) {
+    const n = Number(p);
+    if (isNaN(n)) return '–';
+    if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (n >= 1)    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    return n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 });
+  }
 
   function fmt(iso) {
     if (!iso) return '–';
@@ -227,48 +400,17 @@
            String(d.getMilliseconds()).padStart(3, '0');
   }
 
-  function fmtWindow(startIso, endIso) {
-    if (!startIso || !endIso) return '–';
-    const s = new Date(startIso);
-    const e = new Date(endIso);
-    return s.toLocaleTimeString('en-GB', { hour12: false }) +
-           ' → ' +
-           e.toLocaleTimeString('en-GB', { hour12: false });
-  }
-
-  function intervalLabel(sec) {
-    if (sec === 60)   return '1m';
-    if (sec === 300)  return '5m';
-    if (sec === 3600) return '1h';
-    return sec + 's';
-  }
-
-  function fmtUsdt(n) {
-    if (n === null || n === undefined || n === '') return '–';
-    const x = Number(n);
-    if (isNaN(x)) return '–';
-    if (x >= 1000) return x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (x >= 1)    return x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-    return x.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 });
-  }
-
-  function pctChange(open, close) {
-    const o = Number(open);
-    const c = Number(close);
-    if (!o || isNaN(o) || isNaN(c)) return { text: '–', cls: 'flat' };
-    const pct = ((c - o) / o) * 100;
-    const sign = pct > 0 ? '+' : '';
-    const cls = pct > 0 ? 'up' : (pct < 0 ? 'down' : 'flat');
-    return { text: sign + pct.toFixed(2) + '%', cls };
-  }
-
   async function refresh() {
     try {
       const res = await fetch('/api/dashboard');
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
 
-      // Live stream chips and table
+      ensureSymbols(data.symbols || []);
+      lastHistorySnapshot = data.ohlcHistory || {};
+      renderChartFromCache();
+
+      // Live event stream chips and table
       const chips = document.getElementById('info-chips');
       chips.innerHTML =
         `<span class="chip">topic: <strong>${data.topic}</strong></span>` +
@@ -288,7 +430,7 @@
         tbody.innerHTML = events.map(e => `
           <tr>
             <td class="sym">${e.symbol}</td>
-            <td class="price">${fmtUsdt(e.price)}</td>
+            <td class="price">${formatPrice(e.price)}</td>
             <td class="part">${e.partition}</td>
             <td class="mono">${e.offset}</td>
             <td class="mono">${fmt(e.eventTimestamp)}</td>
@@ -298,47 +440,13 @@
         `).join('');
       }
 
-      // OHLC chips and table
-      const ohlcChips = document.getElementById('ohlc-chips');
-      const ohlcTopics = data.ohlcTopics || {};
-      ohlcChips.innerHTML =
-        `<span class="chip">1m: <strong>${ohlcTopics.oneMinute || '–'}</strong></span>` +
-        `<span class="chip">5m: <strong>${ohlcTopics.fiveMinutes || '–'}</strong></span>` +
-        `<span class="chip">1h: <strong>${ohlcTopics.oneHour || '–'}</strong></span>`;
-
-      const bars = data.ohlcBars || [];
-      document.getElementById('ohlc-count').textContent =
-        bars.length + ' (symbol × interval) pair' + (bars.length !== 1 ? 's' : '');
-
-      const ohlcBody = document.getElementById('ohlc-body');
-      if (bars.length === 0) {
-        ohlcBody.innerHTML = '<tr class="empty-row"><td colspan="10">No closed bars yet, waiting for first window close + grace…</td></tr>';
-      } else {
-        ohlcBody.innerHTML = bars.map(b => {
-          const change = pctChange(b.open, b.close);
-          return `
-            <tr>
-              <td class="sym">${b.symbol}</td>
-              <td><span class="interval">${intervalLabel(b.intervalSec)}</span></td>
-              <td class="window">${fmtWindow(b.windowStart, b.windowEnd)}</td>
-              <td class="ohlc open">${fmtUsdt(b.open)}</td>
-              <td class="ohlc high">${fmtUsdt(b.high)}</td>
-              <td class="ohlc low">${fmtUsdt(b.low)}</td>
-              <td class="ohlc close">${fmtUsdt(b.close)}</td>
-              <td class="change ${change.cls}">${change.text}</td>
-              <td class="mono">${b.tickCount}</td>
-              <td class="mono">${fmt(b.receivedAt)}</td>
-            </tr>
-          `;
-        }).join('');
-      }
-
     } catch (err) {
       document.getElementById('dot').className = 'dot red';
       document.getElementById('status-text').textContent = 'offline';
     }
   }
 
+  initChart();
   refresh();
   setInterval(refresh, REFRESH_MS);
 </script>
