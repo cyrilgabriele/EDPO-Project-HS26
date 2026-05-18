@@ -158,6 +158,74 @@
     .event-stack strong { color: #e2e8f0; font-weight: 700; }
     .event-stack span { color: #64748b; font-family: monospace; font-size: 0.74rem; }
     .audit-missing { color: #64748b; font-size: 0.78rem; }
+    /* Buy-time quote widget */
+    .quote-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    .quote-controls label {
+      font-size: 0.7rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .quote-controls input,
+    .quote-controls select {
+      background: #0f1117;
+      color: #fde68a;
+      border: 1px solid #2d3748;
+      border-radius: 0.375rem;
+      padding: 0.35rem 0.6rem;
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+    .quote-controls input:focus,
+    .quote-controls select:focus { outline: none; border-color: #f59e0b; }
+    .quote-display {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr 1fr;
+      gap: 0.75rem;
+    }
+    .quote-card {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 0.5rem;
+      padding: 1rem 1.25rem;
+    }
+    .quote-card.primary { border-color: #f59e0b; }
+    .quote-label {
+      font-size: 0.7rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .quote-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      font-family: monospace;
+      color: #fde68a;
+      margin-top: 0.2rem;
+    }
+    .quote-card.primary .quote-value { color: #fbbf24; font-size: 2rem; }
+    .quote-card.secondary .quote-value { color: #cbd5e1; font-size: 1.2rem; }
+    .quote-currency {
+      font-size: 0.75rem;
+      font-family: monospace;
+      color: #94a3b8;
+      margin-top: 0.1rem;
+    }
+    .quote-warning {
+      margin-top: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      background: #2d1e00;
+      border: 1px solid #f59e0b;
+      border-radius: 0.375rem;
+      color: #fde68a;
+      font-size: 0.8rem;
+    }
   </style>
 </head>
 <body>
@@ -178,6 +246,56 @@
 </p>
 
 <main>
+
+  <!-- Buy-time quote widget -->
+  <section>
+    <div class="section-header">
+      <h2>Buy-Time Quote</h2>
+      <div class="live-meta">
+        <span><span id="dot-quote" class="dot red"></span>&nbsp;<span id="status-quote">idle</span></span>
+        <span>Updated: <span id="updated-quote">–</span></span>
+        <span>Interval: 1 s</span>
+      </div>
+    </div>
+
+    <p style="font-size:0.8rem; color:#64748b; margin-bottom:0.75rem">
+      Read-side preview rendered from local KTable replicas of <code>crypto.price.raw</code>, <code>reference.fx.rate</code> and <code>user.display-currency</code>. The actual order placement still goes through Camunda; this is only what the frontend would show before the user clicks Buy.
+    </p>
+
+    <div class="quote-controls">
+      <label for="quote-user">User ID</label>
+      <input id="quote-user" type="text" value="alice" autocomplete="off" />
+
+      <label for="quote-symbol">Symbol</label>
+      <select id="quote-symbol">
+        <option value="BTCUSDT">BTCUSDT</option>
+        <option value="ETHUSDT">ETHUSDT</option>
+        <option value="SOLUSDT">SOLUSDT</option>
+        <option value="BNBUSDT">BNBUSDT</option>
+        <option value="XRPUSDT">XRPUSDT</option>
+        <option value="LTCUSDT">LTCUSDT</option>
+      </select>
+    </div>
+
+    <div class="quote-display">
+      <div class="quote-card primary">
+        <div class="quote-label">In user's currency</div>
+        <div class="quote-value" id="quote-display-price">–</div>
+        <div class="quote-currency" id="quote-display-currency">–</div>
+      </div>
+      <div class="quote-card secondary">
+        <div class="quote-label">Underlying</div>
+        <div class="quote-value" id="quote-usdt-price">–</div>
+        <div class="quote-currency">USDT</div>
+      </div>
+      <div class="quote-card secondary">
+        <div class="quote-label">FX rate</div>
+        <div class="quote-value" id="quote-fx-rate">–</div>
+        <div class="quote-currency" id="quote-fx-pair">USD → –</div>
+      </div>
+    </div>
+    <div class="quote-warning" id="quote-warning" style="display:none"></div>
+  </section>
 
   <!-- Orders -->
   <section>
@@ -304,6 +422,74 @@
       </div>
     `;
   }
+
+  /* Buy-time quote widget */
+  const QUOTE_REFRESH_MS = 1000;
+
+  function fmtRate(r) {
+    if (r === null || r === undefined) return '–';
+    const n = Number(r);
+    if (isNaN(n)) return '–';
+    return n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 6 });
+  }
+
+  async function refreshQuote() {
+    const userIdInput = document.getElementById('quote-user');
+    const symbolSel = document.getElementById('quote-symbol');
+    if (!userIdInput || !symbolSel) return;
+    const userId = userIdInput.value.trim();
+    const symbol = symbolSel.value;
+    const warningEl = document.getElementById('quote-warning');
+    const setOffline = (label, msg) => {
+      document.getElementById('dot-quote').className = 'dot red';
+      document.getElementById('status-quote').textContent = label;
+      if (msg) { warningEl.style.display = 'block'; warningEl.textContent = msg; }
+    };
+    if (!userId) {
+      setOffline('paused', 'Enter a user id');
+      return;
+    }
+    try {
+      const res = await fetch('/quote/' + encodeURIComponent(userId) + '/' + encodeURIComponent(symbol));
+      const data = await res.json();
+      if (!res.ok) {
+        document.getElementById('quote-display-price').textContent = '–';
+        document.getElementById('quote-display-currency').textContent = '–';
+        document.getElementById('quote-usdt-price').textContent = '–';
+        document.getElementById('quote-fx-rate').textContent = '–';
+        document.getElementById('quote-fx-pair').textContent = 'USD → –';
+        setOffline('no data', data.error || ('HTTP ' + res.status));
+        return;
+      }
+      const hasFx = data.fxRate !== undefined && data.fxRate !== null;
+      const displayPrice = data.priceDisplay !== undefined && data.priceDisplay !== null
+        ? data.priceDisplay
+        : data.priceUsdt;
+      document.getElementById('quote-display-price').textContent = fmtPrice(displayPrice);
+      document.getElementById('quote-display-currency').textContent = data.displayCurrency || 'USD';
+      document.getElementById('quote-usdt-price').textContent = fmtPrice(data.priceUsdt);
+      document.getElementById('quote-fx-rate').textContent = hasFx ? fmtRate(data.fxRate) : '–';
+      document.getElementById('quote-fx-pair').textContent = 'USD → ' + (data.displayCurrency || 'USD');
+      if (data.warning) {
+        warningEl.style.display = 'block';
+        warningEl.textContent = data.warning;
+      } else {
+        warningEl.style.display = 'none';
+      }
+      document.getElementById('dot-quote').className = 'dot';
+      document.getElementById('status-quote').textContent = 'live';
+      document.getElementById('updated-quote').textContent = new Date().toLocaleTimeString('en-GB');
+    } catch (err) {
+      setOffline('offline');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    refreshQuote();
+    setInterval(refreshQuote, QUOTE_REFRESH_MS);
+    document.getElementById('quote-user').addEventListener('change', refreshQuote);
+    document.getElementById('quote-symbol').addEventListener('change', refreshQuote);
+  });
 
   async function refresh() {
     try {
