@@ -37,6 +37,12 @@ public class TransactionRecordEntity {
     @Column(name = "target_price", nullable = false, updatable = false, precision = 30, scale = 8)
     private BigDecimal targetPrice;
 
+    @Column(name = "target_price_display", nullable = false, updatable = false, precision = 30, scale = 8)
+    private BigDecimal targetPriceDisplay;
+
+    @Column(name = "display_currency", nullable = false, updatable = false, columnDefinition = "char(3)")
+    private String displayCurrency;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private TransactionStatus status;
@@ -58,6 +64,8 @@ public class TransactionRecordEntity {
                 record.symbol(),
                 record.amount(),
                 record.targetPrice(),
+                record.targetPriceDisplay(),
+                record.displayCurrency(),
                 record.status(),
                 record.placedAt(),
                 record.resolvedAt(),
@@ -68,6 +76,7 @@ public class TransactionRecordEntity {
     public TransactionRecord toDomain() {
         return new TransactionRecord(
                 transactionId, userId, symbol, amount, targetPrice,
+                targetPriceDisplay, displayCurrency,
                 status, placedAt, resolvedAt, matchedPrice
         );
     }
