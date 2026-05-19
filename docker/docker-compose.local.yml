@@ -1,0 +1,59 @@
+# Compose override for fast local iteration.
+#
+# This file flips every service's build to its Dockerfile.local, which expects
+# a pre-built jar in `<service>/target/`. A typical iteration loop is:
+#
+#   mvn -pl <service> -am -DskipTests package
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build <service>
+#
+# Or use the helper: ../scripts/fast-rebuild.sh <service>
+#
+# The non-Maven-using base compose file stays the source of truth for env vars,
+# ports, depends_on, etc. This override only swaps the build block.
+
+services:
+
+  market-data-service:
+    build:
+      context: ../market-data-service
+      dockerfile: Dockerfile.local
+
+  market-partial-book-ingestion-service:
+    build:
+      context: ../market-partial-book-ingestion-service
+      dockerfile: Dockerfile.local
+
+  market-order-scout-service:
+    build:
+      context: ../market-order-scout-service
+      dockerfile: Dockerfile.local
+
+  portfolio-service:
+    build:
+      context: ../portfolio-service
+      dockerfile: Dockerfile.local
+
+  transaction-service:
+    build:
+      context: ../transaction-service
+      dockerfile: Dockerfile.local
+
+  user-service:
+    build:
+      context: ../user-service
+      dockerfile: Dockerfile.local
+
+  onboarding-service:
+    build:
+      context: ../onboarding-service
+      dockerfile: Dockerfile.local
+
+  fx-rate-service:
+    build:
+      context: ../fx-rate-service
+      dockerfile: Dockerfile.local
+
+  coin-metadata-service:
+    build:
+      context: ../coin-metadata-service
+      dockerfile: Dockerfile.local

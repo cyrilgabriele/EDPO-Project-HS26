@@ -1,0 +1,22 @@
+# Local fast-iterate runtime image.
+# Skips the Maven-inside-Docker step. Assumes you have already built the jar
+# on the host with:
+#
+#   mvn -pl market-order-scout-service -am -DskipTests package
+#
+# Used together with docker/docker-compose.local.yml which switches the build
+# context to this directory.
+FROM eclipse-temurin:21-jre-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache libstdc++
+
+COPY target/*.jar app.jar
+
+EXPOSE 8086
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD wget -qO- http://localhost:8086/actuator/health 2>/dev/null | grep -q '"status":"UP"' || exit 1
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
