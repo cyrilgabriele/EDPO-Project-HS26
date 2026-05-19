@@ -52,6 +52,12 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
+        <!-- Confluent Avro serdes for reference.fx.rate and user.display-currency (ADR-0032) -->
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-avro-serializer</artifactId>
+        </dependency>
+
         <!-- Java 8 date/time types (Instant) serialisation -->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>

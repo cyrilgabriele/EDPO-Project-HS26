@@ -1,0 +1,44 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: coin-metadata-service
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      properties:
+        schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8090}
+        enable.idempotence: true
+
+coin:
+  provider:
+    name: ${COIN_PROVIDER_NAME:coingecko}
+    url: ${COIN_PROVIDER_URL:https://api.coingecko.com/api/v3/coins/markets}
+    vs-currency: ${COIN_PROVIDER_VS_CURRENCY:usd}
+  poll-interval: ${COIN_POLL_INTERVAL:PT24H}
+  symbols:
+    - { binance: BTCUSDT, base: BTC, quote: USDT, coingecko: bitcoin }
+    - { binance: ETHUSDT, base: ETH, quote: USDT, coingecko: ethereum }
+    - { binance: SOLUSDT, base: SOL, quote: USDT, coingecko: solana }
+    - { binance: BNBUSDT, base: BNB, quote: USDT, coingecko: binancecoin }
+    - { binance: XRPUSDT, base: XRP, quote: USDT, coingecko: ripple }
+    - { binance: LTCUSDT, base: LTC, quote: USDT, coingecko: litecoin }
+
+reference:
+  kafka:
+    topic:
+      crypto-metadata: reference.crypto.metadata
+      crypto-metadata-partitions: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

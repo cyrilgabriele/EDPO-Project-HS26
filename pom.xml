@@ -27,6 +27,8 @@
         <module>transaction-service</module>
         <module>user-service</module>
         <module>onboarding-service</module>
+        <module>fx-rate-service</module>
+        <module>coin-metadata-service</module>
     </modules>
 
     <properties>
@@ -34,6 +36,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- Overrides the spring-kafka version managed by spring-boot-dependencies -->
         <spring-kafka.version>3.3.13</spring-kafka.version>
+        <!-- Confluent Platform (matches cp-kafka image in docker-compose); see ADR-0032 -->
+        <confluent.version>7.6.0</confluent.version>
     </properties>
 
     <dependencyManagement>
@@ -43,6 +47,29 @@
                 <artifactId>shared-events</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <!-- Confluent Schema Registry serdes (per ADR-0032) -->
+            <dependency>
+                <groupId>io.confluent</groupId>
+                <artifactId>kafka-avro-serializer</artifactId>
+                <version>${confluent.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.confluent</groupId>
+                <artifactId>kafka-streams-avro-serde</artifactId>
+                <version>${confluent.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.confluent</groupId>
+                <artifactId>kafka-schema-registry-client</artifactId>
+                <version>${confluent.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <repositories>
+        <repository>
+            <id>confluent</id>
+            <url>https://packages.confluent.io/maven/</url>
+        </repository>
+    </repositories>
 </project>

@@ -1,0 +1,56 @@
+{
+  "type": "record",
+  "name": "PortfolioValue",
+  "namespace": "ch.unisg.cryptoflow.events.avro",
+  "doc": "Per-user portfolio total at a point in event time, USDT-denominated. Display Currency conversion happens at the API boundary on read. Published to the compacted topic portfolio.value.updated, keyed by userId. See scope 04 and ADR-0028.",
+  "fields": [
+    { "name": "userId", "type": "string" },
+    {
+      "name": "totalUsdt",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 38,
+        "scale": 18
+      }
+    },
+    {
+      "name": "breakdown",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "PositionValue",
+          "fields": [
+            { "name": "symbol", "type": "string" },
+            {
+              "name": "quantity",
+              "type": {
+                "type": "bytes",
+                "logicalType": "decimal",
+                "precision": 38,
+                "scale": 18
+              }
+            },
+            {
+              "name": "valueUsdt",
+              "type": {
+                "type": "bytes",
+                "logicalType": "decimal",
+                "precision": 38,
+                "scale": 18
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "asOf",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "type": "record",
+  "name": "FxRate",
+  "namespace": "ch.unisg.cryptoflow.events.avro",
+  "doc": "Slow-moving FX rate sourced from an external provider. Quote per one unit of base. Published to the compacted topic reference.fx.rate by fx-rate-service. See ADR-0029.",
+  "fields": [
+    { "name": "base", "type": "string", "doc": "ISO-4217 base currency, e.g. USD" },
+    { "name": "quote", "type": "string", "doc": "ISO-4217 quote currency, e.g. CHF" },
+    {
+      "name": "rate",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 38,
+        "scale": 18
+      },
+      "doc": "Quote currency units per one unit of base"
+    },
+    { "name": "source", "type": "string", "doc": "Provider identifier, e.g. exchangerate.host" },
+    {
+      "name": "fetchedAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "When the fetch completed (event time)"
+    },
+    {
+      "name": "validFromAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "Provider-reported validity start"
+    }
+  ]
+}

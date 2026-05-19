@@ -1,10 +1,12 @@
 # Event-Driven & Process-Oriented Architectures — Reference Notes
 
-Reference notes derived from HSG ICS lectures 7–9 on event processing.
+Reference notes derived from HSG ICS lectures 7–10 on event processing.
 Each file is a focused, standalone reference. Lecture 9 (stateful
 processing) extends files 06, 11, 12, 13, 14, 15, and 18 with state
 stores, KTable / GlobalKTable, join operators, co-partitioning,
 grouping/aggregation, and materialized stores for interactive queries.
+Lecture 10 (windows and time) extends files 05, 07, 16 and adds 32
+(timestamp extractor), 33 (suppress), 34 (ksqlDB / Processor API).
 
 ## Lecture 7 — Stream Processing: Intro & Key Concepts
 
@@ -53,6 +55,21 @@ grouping/aggregation, and materialized stores for interactive queries.
 ### Reliability and large events
 - **30-idempotent-writer-reader.md** — exactly-once semantics in Kafka
 - **31-large-events-patterns.md** — claim check and event chunking
+
+## Lecture 10 — Windows and Time (deepens lecture 7)
+
+- **32-timestamp-extractor.md** — Kafka Streams `TimestampExtractor`,
+  built-in extractors, custom payload extractor, registration via
+  `Consumed.withTimestampExtractor`
+- **33-suppress-operator.md** — Suppressed Event Aggregator pattern;
+  emit only final results when a window closes
+- **34-ksqldb-and-processor-api.md** — Kafka Streams DSL vs Processor
+  API trade-offs; ksqlDB as the SQL surface (interactive vs headless)
+
+Lecture 10 also adds two new window types referenced from
+`07-time-windows.md`: **sliding join windows** (used by `JoinWindows`)
+and **sliding aggregation windows** (`SlidingWindows`, per-record
+continuous aggregates).
 
 ## Primary Sources
 

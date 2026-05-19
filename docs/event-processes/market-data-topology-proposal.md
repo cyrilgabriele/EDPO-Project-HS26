@@ -70,12 +70,21 @@ This is the windowed stage. It turns the unbounded price stream into finite 5-mi
 Responsibilities:
 
 - Group clean ticks by symbol.
-- Use event time from the price tick timestamp.
+- Use **event time** from the price tick timestamp via a custom
+  `TimestampExtractor` reading `sourceTimestamp` from the payload (see
+  `docs/agent-instructions/events/32-timestamp-extractor.md`). Lecture 10
+  is explicit that the active time semantics are decided here, not by
+  broker config alone.
 - Apply a 5-minute tumbling window.
 - Compute open, high, low, close, and tick count for each symbol/window.
+- **Suppress** until the window closes so each `(symbol, window)` emits
+  exactly one closed candle (matches trading-style "candle close"
+  semantics; see scope 5 and `33-suppress-operator.md`).
 - Emit candles to `crypto.ohlc.5m`.
 
-Late events should be accepted within a small grace period, for example 10-30 seconds. Events later than the grace period can be dropped or routed to a late-event topic.
+Late events should be accepted within a small grace period, for example
+10–30 seconds. Events later than the grace period can be dropped or
+routed to a late-event topic.
 
 ## Implementation Notes
 
@@ -84,3 +93,23 @@ Late events should be accepted within a small grace period, for example 10-30 se
 - Prefer Avro for new derived topics: `crypto.price.clean`, `portfolio.value.updated`, and `crypto.ohlc.5m`.
 - The existing in-memory `LocalPriceCache` and REST-time valuation can remain during migration, but the stream topology should become the demonstrated stateful implementation.
 - A dedicated streams module or service is preferable to embedding the topology inside form/onboarding workflows.
+
+### Time semantics across the topology
+
+Drawn from Lecture 10:
+
+- **Stage 1 (sanity)** — stateless; time semantics are not load-bearing
+  here, but the stage MUST preserve the source `sourceTimestamp` field
+  on `CleanPriceTick` so that downstream stages can use payload-driven
+  event time.
+- **Stage 2 (valuation)** — stateful, non-windowed; outputs inherit the
+  latest contributing input timestamp. No grace period to choose, but
+  Kafka Streams will still process records in **timestamp order** across
+  the price and order inputs (time-driven data flow), which is what
+  makes valuation deterministic.
+- **Stage 3 (OHLC)** — windowed; pinned to event time via a custom
+  `TimestampExtractor` and closed via grace + suppress as above.
+
+A consistent custom extractor across stages 2 and 3 is the cheapest way
+to make sure reprocessing produces identical valuations and identical
+candles.

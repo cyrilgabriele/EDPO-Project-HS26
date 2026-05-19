@@ -11,6 +11,7 @@ import lombok.*;
 // Dedicated table name to avoid the reserved postgres keyword `user`
 @Table(name = "cryptoflow_user")
 @Getter
+@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class UserEntity {
@@ -28,11 +29,15 @@ public class UserEntity {
     @Column(name = "email", nullable = false)
     private String email;
 
+    @Column(name = "display_currency", nullable = false, length = 3)
+    private String displayCurrency;
+
     public static UserEntity fromDomain(User user) {
-        return new UserEntity(user.userId(), user.username(), user.password(), user.email());
+        String dc = user.displayCurrency() == null ? User.DEFAULT_DISPLAY_CURRENCY : user.displayCurrency();
+        return new UserEntity(user.userId(), user.username(), user.password(), user.email(), dc);
     }
 
     public User toDomain() {
-        return new User(username, password, userId, email);
+        return new User(username, password, userId, email, displayCurrency);
     }
 }

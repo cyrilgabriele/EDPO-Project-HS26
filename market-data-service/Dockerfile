@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ──────────────────────────────────────────────────
 # Stage 1 – Build (Maven + JDK 21)
 # ──────────────────────────────────────────────────
@@ -15,16 +16,18 @@ COPY portfolio-service/pom.xml portfolio-service/
 COPY transaction-service/pom.xml transaction-service/
 COPY user-service/pom.xml user-service/
 COPY onboarding-service/pom.xml onboarding-service/
+COPY fx-rate-service/pom.xml fx-rate-service/
+COPY coin-metadata-service/pom.xml coin-metadata-service/
 
 # Pre-download dependencies (cached as a layer)
-RUN mvn dependency:go-offline -pl market-data-service,shared-events -am -q
+RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -pl market-data-service,shared-events -am -q
 
 # Copy source code
 COPY shared-events/src shared-events/src
 COPY market-data-service/src market-data-service/src
 
 # Build the fat JAR
-RUN mvn package -pl market-data-service -am -DskipTests -q
+RUN --mount=type=cache,target=/root/.m2 mvn -T 1C package -pl market-data-service -am -DskipTests -q
 
 # ──────────────────────────────────────────────────
 # Stage 2 – Runtime (JRE 21 slim)
@@ -32,6 +35,9 @@ RUN mvn package -pl market-data-service -am -DskipTests -q
 FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
+
+# RocksDB (used by Kafka Streams state stores) needs libstdc++ at runtime.
+RUN apk add --no-cache libstdc++
 
 COPY --from=build /workspace/market-data-service/target/*.jar app.jar
 

@@ -4,6 +4,8 @@ import ch.unisg.cryptoflow.transaction.adapter.in.camunda.job.OrderProcessingVar
 import ch.unisg.cryptoflow.transaction.adapter.out.persistence.ConfirmedUserRepository;
 import ch.unisg.cryptoflow.transaction.application.port.out.SaveTransactionPort;
 import ch.unisg.cryptoflow.transaction.avro.BuyBid;
+import ch.unisg.cryptoflow.transaction.domain.DisplayCurrencyCache;
+import ch.unisg.cryptoflow.transaction.domain.FxRateCache;
 import ch.unisg.cryptoflow.transaction.domain.TransactionRecord;
 import ch.unisg.cryptoflow.transaction.domain.TransactionStatus;
 import io.camunda.zeebe.client.ZeebeClient;
@@ -21,14 +23,16 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Incoming Camunda adapter – handles the {@code placeOrderWorker} job.
+ * Incoming Camunda adapter for the {@code placeOrderWorker} job.
  *
- * <p>Validates input, generates a transactionId, persists the order as PENDING, and publishes
- * it as a symbol-keyed buy bid for the matching topology. Throws a BPMN error {@code INVALID_ORDER} for
- * deterministic validation failures so the process loops back to the order form.
+ * <p>The price the user enters on the form is interpreted in their
+ * Display Currency. The worker converts it to USDT using the latest FX rate
+ * from the local KTable replica, persists both values for audit, and publishes
+ * the USDT-denominated {@link BuyBid} for the matching topology.
  */
 @Component
 @Slf4j
@@ -39,6 +43,8 @@ public class PlaceOrderWorker {
     private final ConfirmedUserRepository confirmedUserRepository;
     private final KafkaTemplate<String, BuyBid> buyBidKafkaTemplate;
     private final ZeebeClient zeebeClient;
+    private final DisplayCurrencyCache displayCurrencyCache;
+    private final FxRateCache fxRateCache;
 
     @Value("${crypto.kafka.topic.buy-bids}")
     private String buyBidTopic;
@@ -50,16 +56,16 @@ public class PlaceOrderWorker {
 
         String validationError = validate(vars);
         if (validationError != null) {
-            log.warn("Order validation failed: {}", validationError);
-            // Set at process instance scope so the variable is visible when the
-            // boundary event routes back to the user task form.
-            zeebeClient.newSetVariablesCommand(job.getProcessInstanceKey())
-                    .variables(Map.of("validationError", validationError))
-                    .send().join();
-            client.newThrowErrorCommand(job.getKey())
-                    .errorCode("INVALID_ORDER")
-                    .errorMessage(validationError)
-                    .send().join();
+            failWithValidation(client, job, validationError);
+            return;
+        }
+
+        String userId = vars.userId();
+        String displayCurrency = displayCurrencyCache.getOrDefault(userId);
+        Optional<BigDecimal> fxRate = fxRateCache.getRate(displayCurrency);
+        if (fxRate.isEmpty()) {
+            String msg = "FX rate for " + displayCurrency + " not yet cached, please retry";
+            failWithValidation(client, job, msg);
             return;
         }
 
@@ -67,15 +73,20 @@ public class PlaceOrderWorker {
         Instant now = Instant.now();
         String symbol = normalizeSymbol(vars.symbol());
         BigDecimal amount = normalize(new BigDecimal(vars.amount()));
-        BigDecimal price = normalize(new BigDecimal(vars.price()));
-        log.debug("{} | transactionId: {}", vars, transactionId);
+        BigDecimal priceDisplay = normalize(new BigDecimal(vars.price()));
+        BigDecimal priceUsdt = normalize(priceDisplay.divide(fxRate.get(), 18, RoundingMode.HALF_UP));
+
+        log.info("Order placed: userId={} symbol={} amount={} priceDisplay={} {} fxRate={} priceUsdt={}",
+                userId, symbol, amount, priceDisplay, displayCurrency, fxRate.get(), priceUsdt);
 
         saveTransactionPort.save(new TransactionRecord(
                 transactionId,
-                vars.userId(),
+                userId,
                 symbol,
                 amount,
-                price,
+                priceUsdt,
+                priceDisplay,
+                displayCurrency,
                 TransactionStatus.PENDING,
                 now,
                 null,
@@ -84,19 +95,32 @@ public class PlaceOrderWorker {
 
         BuyBid bid = BuyBid.newBuilder()
                 .setTransactionId(transactionId)
-                .setUserId(vars.userId())
+                .setUserId(userId)
                 .setSymbol(symbol)
                 .setBidQuantity(amount)
-                .setBidPrice(price)
+                .setBidPrice(priceUsdt)
                 .setCreatedAt(now)
                 .build();
         buyBidKafkaTemplate.send(buyBidTopic, symbol, bid);
 
         variables.put("transactionId", transactionId);
-        variables.put("userId", vars.userId());
+        variables.put("userId", userId);
         variables.put("symbol", symbol);
-        variables.put("validationError", "");  // clear any previous validation error
+        variables.put("displayCurrency", displayCurrency);
+        variables.put("priceUsdt", priceUsdt.toPlainString());
+        variables.put("validationError", "");
         client.newCompleteCommand(job.getKey()).variables(variables).send().join();
+    }
+
+    private void failWithValidation(JobClient client, ActivatedJob job, String message) {
+        log.warn("Order validation failed: {}", message);
+        zeebeClient.newSetVariablesCommand(job.getProcessInstanceKey())
+                .variables(Map.of("validationError", message))
+                .send().join();
+        client.newThrowErrorCommand(job.getKey())
+                .errorCode("INVALID_ORDER")
+                .errorMessage(message)
+                .send().join();
     }
 
     private String validate(OrderProcessingVariables vars) {

@@ -33,6 +33,12 @@
             <artifactId>kafka-streams</artifactId>
         </dependency>
 
+        <!-- Confluent Avro serdes for reference.fx.rate and user.display-currency (ADR-0032) -->
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-avro-serializer</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.avro</groupId>
             <artifactId>avro</artifactId>

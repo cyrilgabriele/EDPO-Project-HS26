@@ -1,6 +1,6 @@
 # 03. FX Price Enrichment
 
-**Type:** stateful &nbsp;|&nbsp; **Required patterns:** Processing with External Lookup (Stream-Table Join) &nbsp;|&nbsp; **Owner:** TBD &nbsp;|&nbsp; **Status:** draft
+**Type:** stateful &nbsp;|&nbsp; **Required patterns:** Processing with External Lookup (Stream-Table Join) &nbsp;|&nbsp; **Owner:** Janni &nbsp;|&nbsp; **Status:** ready
 
 ## Purpose
 
@@ -8,7 +8,14 @@ Join `crypto.price.clean` (stream) with `reference.fx.rate` (KTable built from s
 
 ## Why this matters
 
-User-facing portfolios should show values in the user's local currency (CHF, EUR, GBP). Pre-computing in a stream removes FX conversion from request-path code and removes the HTTP API as a runtime dependency of the UI.
+User-facing portfolios should show values in the user's Display Currency (USD, EUR, CHF, GBP). Pre-computing the conversion in a stream removes FX math from request-path code and removes the HTTP FX provider as a runtime dependency of the UI.
+
+## Decisions locked in
+
+- **Pattern shape:** stream-table join, broadcast. `LocalizedPrice` carries a `prices` map covering every currency in the supported set; consumers pick by user's Display Currency at API read time (no per-user routing). See [ADR-0030](../adrs/0030_stream_table_join_for_price_localization.md).
+- **Serialization:** Avro + Confluent Schema Registry (see [ADR-0032](../adrs/0032_avro_schema_registry_for_derived_events.md)).
+- **Host:** new streams module inside market-data-service (proposed; see Flagged ambiguities in [00-display-currency-cross-context.md](00-display-currency-cross-context.md)).
+- **Cross-context contract:** documented in [00-display-currency-cross-context.md](00-display-currency-cross-context.md); the canonical `LocalizedPrice` field naming there overrides the schema sketch below if they conflict.
 
 ## Patterns hit
 
@@ -99,16 +106,15 @@ builder.stream("crypto.price.clean", ...)
 
 ## Open decisions
 
-- [ ] Target currencies — hardcoded list, user-profile-driven, or both.
-- [ ] One event with `map<ccy, price>` vs one event per target currency (fan-out).
-- [ ] GlobalKTable vs regular KTable for FX (propose GlobalKTable — tiny volume).
-- [ ] Expose IQ on this scope, or defer to scope 4?
-- [ ] Consume `.clean` (propose) vs `.raw`.
+- [x] ~~Target currencies, hardcoded vs user-profile-driven.~~ → **hardcoded supported set** `{USD, EUR, CHF, GBP}` in the streams app config; user profile only governs the read-time pick ([ADR-0030](../adrs/0030_stream_table_join_for_price_localization.md), [ADR-0028](../adrs/0028_display_currency_as_user_identity_data.md)).
+- [x] ~~One event with `map<ccy, price>` vs fan-out.~~ → **map-per-event** broadcast.
+- [x] ~~GlobalKTable vs KTable.~~ → **GlobalKTable** for `reference.fx.rate` (tiny volume; no co-partitioning concern).
+- [x] ~~Consume `.clean` vs `.raw`.~~ → **`crypto.price.clean`** (sanity-filtered input).
+- [ ] Expose IQ on this scope? Defer to scope 4; revisit only if a dashboard read API needs `LocalizedPrice` without going through `PortfolioValue`.
 
 ## ADR candidates
 
-- ADR — stream-table join layout (per-event fan-out vs map-value enrichment).
-- ADR — GlobalKTable vs KTable for reference data.
+Both originally-listed ADR candidates are subsumed by [ADR-0030](../adrs/0030_stream_table_join_for_price_localization.md).
 
 ## Related scopes
 

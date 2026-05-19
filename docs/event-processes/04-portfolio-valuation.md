@@ -1,10 +1,17 @@
 # 04. Real-Time Portfolio Valuation
 
-**Type:** stateful &nbsp;|&nbsp; **Required patterns:** Stream-Table Join, Table-Table Join, Processing with Local State, Multiphase Repartitioning, Interactive Queries &nbsp;|&nbsp; **Owner:** TBD &nbsp;|&nbsp; **Status:** draft
+**Type:** stateful &nbsp;|&nbsp; **Required patterns:** Stream-Table Join, Table-Table Join, Processing with Local State, Multiphase Repartitioning, Interactive Queries &nbsp;|&nbsp; **Owner:** Janni &nbsp;|&nbsp; **Status:** draft
 
 ## Purpose
 
 Continuously compute each user's total portfolio value (sum of `qty × current price` across all holdings) and expose it via Kafka Streams interactive queries so the portfolio dashboard can read it without hitting PostgreSQL.
+
+## Decisions locked in (cross-context)
+
+- **Aggregation stays USDT-denominated.** Holdings, position values, and `PortfolioValue` totals are computed in USDT. Display Currency conversion happens at API read time on the consuming endpoint, not inside this streams app. See [ADR-0028](../adrs/0028_display_currency_as_user_identity_data.md) and [ADR-0031](../adrs/0031_venue_native_ohlc_with_read_time_conversion.md) for the same doctrine applied to OHLC.
+- **Read-time inputs.** The HTTP read path additionally consumes `crypto.price.localized` ([ADR-0030](../adrs/0030_stream_table_join_for_price_localization.md)) and `user.display-currency` (compacted, see [ADR-0028](../adrs/0028_display_currency_as_user_identity_data.md)) so it can convert at the endpoint.
+- **Serialization:** `PortfolioValue` is Avro per [ADR-0032](../adrs/0032_avro_schema_registry_for_derived_events.md).
+- **Cross-context contract:** documented in [00-display-currency-cross-context.md](00-display-currency-cross-context.md).
 
 ## Why this matters
 

@@ -38,7 +38,7 @@
     }
 
     .notice {
-      max-width: 1100px;
+      max-width: 1200px;
       margin: 1.25rem auto 0;
       padding: 0 2rem;
       font-size: 0.85rem;
@@ -87,34 +87,35 @@
     }
     .chip strong { color: #e2e8f0; }
 
-    /* ── Price cache grid ───────────────────────────────────────────────────── */
-    .price-grid {
+    /* Cache grids (prices, fx) */
+    .cache-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 0.75rem;
     }
-    .price-card {
+    .cache-card {
       background: #0f1117;
       border: 1px solid #2d3748;
       border-radius: 0.5rem;
       padding: 1rem;
     }
-    .price-card .symbol { font-size: 0.85rem; color: #94a3b8; font-weight: 600; letter-spacing: 0.05em; }
-    .price-card .price-val {
+    .cache-card .symbol { font-size: 0.85rem; color: #94a3b8; font-weight: 600; letter-spacing: 0.05em; }
+    .cache-card .price-val {
       font-size: 1.3rem;
       font-weight: 700;
       color: #34d399;
       font-family: monospace;
       margin: 0.25rem 0 0;
     }
-    .price-card .note { font-size: 0.7rem; color: #4a5568; margin-top: 0.25rem; }
+    .cache-card.fx .price-val { color: #fbbf24; }
+    .cache-card .note { font-size: 0.7rem; color: #4a5568; margin-top: 0.25rem; }
 
     .empty-cache { color: #4a5568; text-align: center; padding: 2rem; font-size: 0.9rem; }
 
-    /* ── Portfolio cards ────────────────────────────────────────────────────── */
+    /* Portfolio cards */
     .portfolio-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(460px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
       gap: 1rem;
     }
     .portfolio-card {
@@ -127,7 +128,7 @@
       padding: 0.75rem 1rem;
       border-bottom: 1px solid #2d3748;
       display: flex;
-      align-items: baseline;
+      align-items: flex-start;
       justify-content: space-between;
       gap: 0.5rem;
     }
@@ -135,7 +136,40 @@
       font-weight: 700;
       color: #e2e8f0;
       font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
+    .dc-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      background: #1a3a2e;
+      color: #86efac;
+      border: 1px solid #22c55e;
+      border-radius: 999px;
+      padding: 0.1rem 0.55rem;
+      text-transform: uppercase;
+    }
+    .dc-select {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      background: #1a3a2e;
+      color: #86efac;
+      border: 1px solid #22c55e;
+      border-radius: 999px;
+      padding: 0.1rem 1.4rem 0.1rem 0.55rem;
+      text-transform: uppercase;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath fill='%2386efac' d='M0 0l4 6 4-6z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.5rem center;
+    }
+    .dc-select:hover { background-color: #14532d; }
+    .dc-select:disabled { opacity: 0.5; cursor: wait; }
     .uid-row {
       display: flex;
       align-items: center;
@@ -162,12 +196,18 @@
     }
     .copy-btn:hover { color: #c084fc; border-color: #a855f7; }
     .copy-btn.copied { color: #86efac; border-color: #22c55e; }
-    .portfolio-card-header .total {
+    .portfolio-totals { text-align: right; white-space: nowrap; }
+    .portfolio-totals .display-total {
       font-family: monospace;
-      font-size: 0.9rem;
+      font-size: 1.05rem;
       font-weight: 700;
       color: #a78bfa;
-      white-space: nowrap;
+    }
+    .portfolio-totals .usdt-total {
+      font-family: monospace;
+      font-size: 0.72rem;
+      color: #4a5568;
+      margin-top: 0.1rem;
     }
 
     .holdings-table { width: 100%; border-collapse: collapse; font-size: 0.81rem; }
@@ -188,7 +228,8 @@
     .holdings-table td.left { text-align: left; font-family: monospace; font-size: 0.75rem; color: #64748b; }
     .holdings-table tr:last-child td { border-bottom: none; }
     .holdings-table .sym-cell { font-weight: 700; color: #c084fc; }
-    .holdings-table .val-cell { color: #34d399; }
+    .holdings-table .display-val { color: #a78bfa; font-weight: 600; }
+    .holdings-table .usdt-sub { display: block; font-size: 0.68rem; color: #4a5568; font-weight: 400; margin-top: 0.1rem; }
     .no-holdings { color: #4a5568; text-align: center; padding: 1rem; font-size: 0.85rem; }
     .empty-portfolios { color: #4a5568; text-align: center; padding: 2rem; font-size: 0.9rem; }
   </style>
@@ -204,8 +245,7 @@
 </header>
 
 <p class="notice">
-  Prices served entirely from <strong>this service's in-memory cache</strong> — no calls to market-data-service at query time.
-  Open the Network tab to confirm: port 8081 is never contacted.
+  Portfolios are valued from <strong>three local KTable-style caches</strong>: USDT prices from <code>crypto.price.raw</code>, FX rates from <code>reference.fx.rate</code>, and each user's Display Currency from <code>user.display-currency</code>. Conversion happens at API read time (see ADR-0028, ADR-0029, ADR-0030).
 </p>
 
 <main>
@@ -213,7 +253,7 @@
   <!-- Price cache -->
   <section>
     <div class="live-header">
-      <h2>Local Price Cache</h2>
+      <h2>Local Price Cache (USDT)</h2>
       <div class="live-meta">
         <span><span id="dot" class="dot red"></span>&nbsp;<span id="status-text">connecting…</span></span>
         <span>Updated: <span id="last-updated">–</span></span>
@@ -225,8 +265,21 @@
       <span class="chip">topic: <strong>loading…</strong></span>
     </div>
 
-    <div id="price-grid" class="price-grid">
+    <div id="price-grid" class="cache-grid">
       <div class="empty-cache">Waiting for first events from Kafka…</div>
+    </div>
+  </section>
+
+  <!-- FX cache -->
+  <section>
+    <div class="live-header">
+      <h2>Local FX Cache (USD-quoted)</h2>
+      <div class="live-meta">
+        <span id="fx-count" style="color:#64748b">–</span>
+      </div>
+    </div>
+    <div id="fx-grid" class="cache-grid">
+      <div class="empty-cache">Waiting for FxRate events…</div>
     </div>
   </section>
 
@@ -239,7 +292,7 @@
       </div>
     </div>
     <div id="portfolio-grid" class="portfolio-grid">
-      <div class="empty-portfolios">No portfolios yet — complete onboarding first.</div>
+      <div class="empty-portfolios">No portfolios yet, complete onboarding first.</div>
     </div>
   </section>
 
@@ -255,7 +308,7 @@
            String(d.getMilliseconds()).padStart(3, '0');
   }
 
-  function fmtPrice(p) {
+  function fmtPriceUsdt(p) {
     const n = Number(p);
     if (!p || isNaN(n)) return '–';
     if (n >= 1000) return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -269,9 +322,28 @@
     return n.toLocaleString('en-US', { maximumFractionDigits: 8 });
   }
 
-  function fmtVal(v) {
-    if (!v) return '–';
-    return '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function fmtCurrency(amount, code) {
+    if (amount === undefined || amount === null || amount === '') return '–';
+    const n = Number(amount);
+    if (isNaN(n)) return amount;
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: code || 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(n);
+    } catch (e) {
+      // Fallback if the runtime does not know the code
+      return (code || 'USD') + ' ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+  }
+
+  function fmtRate(r) {
+    if (!r) return '–';
+    const n = Number(r);
+    if (isNaN(n)) return r;
+    return n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 6 });
   }
 
   async function refresh() {
@@ -280,79 +352,134 @@
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
 
-      // ── Price cache ────────────────────────────────────────────────────────
+      // Status header
       document.getElementById('info-chips').innerHTML =
         `<span class="chip">topic: <strong>${data.topic}</strong></span>` +
         `<span class="chip">group: <strong>${data.groupId}</strong></span>` +
-        `<span class="chip">cached symbols: <strong>${data.cacheSize}</strong></span>`;
-
+        `<span class="chip">cached symbols: <strong>${data.cacheSize}</strong></span>` +
+        `<span class="chip">cached fx pairs: <strong>${Object.keys(data.fxRates || {}).length}</strong></span>`;
       document.getElementById('dot').className = 'dot';
       document.getElementById('status-text').textContent = 'live';
       document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('en-GB');
 
+      // Price cache
       const grid = document.getElementById('price-grid');
       const prices = data.prices || {};
-      const entries = Object.entries(prices);
-      if (entries.length === 0) {
-        grid.innerHTML = '<div class="empty-cache">No prices cached yet — Kafka consumer warming up…</div>';
+      const priceEntries = Object.entries(prices);
+      if (priceEntries.length === 0) {
+        grid.innerHTML = '<div class="empty-cache">No prices cached yet, Kafka consumer warming up…</div>';
       } else {
-        grid.innerHTML = entries
+        grid.innerHTML = priceEntries
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([symbol, price]) => `
-            <div class="price-card">
+            <div class="cache-card">
               <div class="symbol">${symbol}</div>
-              <div class="price-val">${fmtPrice(price)}</div>
+              <div class="price-val">${fmtPriceUsdt(price)}</div>
               <div class="note">served from LocalPriceCache</div>
             </div>
           `).join('');
       }
 
-      // ── Portfolios ─────────────────────────────────────────────────────────
+      // FX cache
+      const fxGrid = document.getElementById('fx-grid');
+      const fxRates = data.fxRates || {};
+      const fxEntries = Object.entries(fxRates).filter(([code]) => code !== 'USD');
+      document.getElementById('fx-count').textContent =
+        Object.keys(fxRates).length + ' rate' + (Object.keys(fxRates).length !== 1 ? 's' : '') +
+        ' (USD anchor implicit)';
+      if (fxEntries.length === 0) {
+        fxGrid.innerHTML = '<div class="empty-cache">No FX rates cached yet, fx-rate-service warming up…</div>';
+      } else {
+        fxGrid.innerHTML = fxEntries
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([code, rate]) => `
+            <div class="cache-card fx">
+              <div class="symbol">USD → ${code}</div>
+              <div class="price-val">${fmtRate(rate)}</div>
+              <div class="note">served from FxRateCache</div>
+            </div>
+          `).join('');
+      }
+
+      // Portfolios
       const portfolios = data.portfolios || [];
       const pGrid = document.getElementById('portfolio-grid');
       document.getElementById('portfolio-count').textContent =
         portfolios.length + ' portfolio' + (portfolios.length !== 1 ? 's' : '');
 
       if (portfolios.length === 0) {
-        pGrid.innerHTML = '<div class="empty-portfolios">No portfolios yet — complete onboarding first.</div>';
+        pGrid.innerHTML = '<div class="empty-portfolios">No portfolios yet, complete onboarding first.</div>';
         return;
       }
 
+      if (pGrid.contains(document.activeElement)) return;
+
       pGrid.innerHTML = portfolios.map(p => {
+        const dc = p.displayCurrency || 'USD';
         const holdingRows = (p.holdings || []).length === 0
           ? `<tr><td colspan="5" class="no-holdings">No holdings yet</td></tr>`
-          : (p.holdings || []).map(h => `
-              <tr>
-                <td class="sym-cell">${h.symbol}</td>
-                <td>${fmtQty(h.quantity)}</td>
-                <td>${fmtPrice(h.currentPrice)}</td>
-                <td class="val-cell">${fmtVal(h.currentValue)}</td>
-                <td class="left">${fmtTime(h.addedAt)}</td>
-              </tr>
-            `).join('');
+          : (p.holdings || []).map(h => {
+              const valueDisplay = h.currentValueDisplay
+                ? fmtCurrency(h.currentValueDisplay, dc)
+                : (h.currentValueUsdt ? fmtCurrency(h.currentValueUsdt, 'USD') : '–');
+              const usdtSub = (h.currentValueUsdt && dc !== 'USD')
+                ? `<span class="usdt-sub">${fmtCurrency(h.currentValueUsdt, 'USD')} USDT</span>`
+                : '';
+              const priceDisplay = h.currentPriceDisplay
+                ? fmtCurrency(h.currentPriceDisplay, dc)
+                : fmtPriceUsdt(h.currentPrice);
+              return `
+                <tr>
+                  <td class="sym-cell">${h.symbol}</td>
+                  <td>${fmtQty(h.quantity)}</td>
+                  <td>${priceDisplay}</td>
+                  <td class="display-val">${valueDisplay}${usdtSub}</td>
+                  <td class="left">${fmtTime(h.addedAt)}</td>
+                </tr>
+              `;
+            }).join('');
 
-        const totalDisplay = p.totalValue ? fmtVal(p.totalValue) : '–';
+        const totalDisplay = p.totalValueDisplay
+          ? fmtCurrency(p.totalValueDisplay, dc)
+          : (p.totalValueUsdt ? fmtCurrency(p.totalValueUsdt, 'USD') : '–');
+        const totalUsdtSub = (p.totalValueUsdt && dc !== 'USD')
+          ? `<div class="usdt-total">${fmtCurrency(p.totalValueUsdt, 'USD')} USDT</div>`
+          : '';
+        const fxNote = (p.fxRate && dc !== 'USD')
+          ? `<div class="usdt-total">FX 1 USD = ${fmtRate(p.fxRate)} ${dc}</div>`
+          : '';
         const uid = p.userId || '';
 
         return `
           <div class="portfolio-card">
             <div class="portfolio-card-header">
               <div>
-                <div class="uname">${p.userName || '(unnamed)'}</div>
+                <div class="uname">
+                  ${p.userName || '(unnamed)'}
+                  <select class="dc-select" data-userid="${uid}" data-currency="${dc}" onchange="changeDisplayCurrency(this)">
+                    ${['USD','EUR','CHF','GBP'].map(c =>
+                      `<option value="${c}" ${c === dc ? 'selected' : ''}>${c}</option>`
+                    ).join('')}
+                  </select>
+                </div>
                 <div class="uid-row">
                   <span class="uid">${uid}</span>
                   <button class="copy-btn" onclick="copyId(this,'${uid}')" title="Copy user ID">&#128203;</button>
                 </div>
               </div>
-              <div class="total">${totalDisplay}</div>
+              <div class="portfolio-totals">
+                <div class="display-total">${totalDisplay}</div>
+                ${totalUsdtSub}
+                ${fxNote}
+              </div>
             </div>
             <table class="holdings-table">
               <thead>
                 <tr>
                   <th>Symbol</th>
                   <th>Qty</th>
-                  <th>Price</th>
-                  <th>Value</th>
+                  <th>Price (${dc})</th>
+                  <th>Value (${dc})</th>
                   <th class="left">Added At</th>
                 </tr>
               </thead>
@@ -371,12 +498,50 @@
   function copyId(btn, id) {
     navigator.clipboard.writeText(id).then(function() {
       btn.classList.add('copied');
-      btn.textContent = '\u2713';
+      btn.textContent = '✓';
       setTimeout(function() {
         btn.classList.remove('copied');
-        btn.textContent = '\ud83d\udccb';
+        btn.textContent = '📋';
       }, 1500);
     });
+  }
+
+  // Calls user-service's PATCH endpoint to change a user's Display Currency.
+  // The portfolio-service consumer of user.display-currency then updates the
+  // in-memory KTable replica, and the next /api/dashboard refresh shows the
+  // new currency end-to-end. CORS on user-service is opened for this in dev.
+  const USER_SERVICE_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+      ? 'http://' + location.hostname + ':8084'
+      : (location.protocol + '//' + location.hostname + ':8084');
+
+  async function changeDisplayCurrency(sel) {
+    const userId = sel.dataset.userid;
+    const previous = sel.dataset.currency;
+    const next = sel.value;
+    if (!userId || next === previous) return;
+    sel.disabled = true;
+    try {
+      const res = await fetch(USER_SERVICE_BASE + '/users/' + encodeURIComponent(userId) + '/display-currency', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayCurrency: next })
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert('Could not change Display Currency: ' + (body.error || ('HTTP ' + res.status)));
+        sel.value = previous;
+        return;
+      }
+      sel.dataset.currency = next;
+      // Force a refresh so the new currency is visible immediately.
+      // The consumer typically catches up within ~1s.
+      setTimeout(refresh, 600);
+    } catch (err) {
+      alert('Network error contacting user-service: ' + err.message);
+      sel.value = previous;
+    } finally {
+      sel.disabled = false;
+    }
   }
 
   refresh();

@@ -8,6 +8,10 @@ spring:
     consumer:
       group-id: user-service-compensation
       auto-offset-reset: earliest
+    properties:
+      # Confluent Schema Registry endpoint for the user.display-currency Avro topic (ADR-0032).
+      # Inside the Docker network: http://schema-registry:8081 · from host: http://localhost:8090
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://schema-registry:8081}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/user_service_db}
     username: ${SPRING_DATASOURCE_USERNAME:cryptoflow}
@@ -48,3 +52,4 @@ crypto:
       portfolio-compensation: crypto.portfolio.compensation
       user-compensation: crypto.user.compensation
       user-confirmed: user.confirmed
+      user-display-currency: user.display-currency

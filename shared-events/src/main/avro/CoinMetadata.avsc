@@ -1,0 +1,27 @@
+{
+  "type": "record",
+  "name": "CoinMetadata",
+  "namespace": "ch.unisg.cryptoflow.events.avro",
+  "doc": "External reference data about a trading pair (full name, image, ranking, categories). Sourced from CoinGecko by coin-metadata-service. Published to the compacted topic reference.crypto.metadata, keyed by Binance symbol. Materialised downstream as a GlobalKTable for stream-table joins (pattern 13).",
+  "fields": [
+    { "name": "symbol", "type": "string", "doc": "Binance symbol, e.g. BTCUSDT" },
+    { "name": "baseAsset", "type": "string", "doc": "ISO-style base, e.g. BTC" },
+    { "name": "quoteAsset", "type": "string", "doc": "Quote currency reported by Binance, e.g. USDT" },
+    { "name": "coinGeckoId", "type": "string", "doc": "Provider id used for the lookup, e.g. bitcoin" },
+    { "name": "name", "type": "string", "doc": "Display name of the base asset, e.g. Bitcoin" },
+    { "name": "imageUrl", "type": ["null", "string"], "default": null, "doc": "URL of the official coin logo" },
+    { "name": "marketCapRank", "type": ["null", "int"], "default": null },
+    {
+      "name": "categories",
+      "type": ["null", { "type": "array", "items": "string" }],
+      "default": null,
+      "doc": "Tags such as 'Smart Contract Platform', 'Layer 1', etc."
+    },
+    { "name": "description", "type": ["null", "string"], "default": null, "doc": "Short one-paragraph description, may be truncated" },
+    { "name": "homepageUrl", "type": ["null", "string"], "default": null },
+    {
+      "name": "fetchedAt",
+      "type": { "type": "long", "logicalType": "timestamp-millis" }
+    }
+  ]
+}

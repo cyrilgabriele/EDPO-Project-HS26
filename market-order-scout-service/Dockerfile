@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM maven:3.9-eclipse-temurin-21-alpine AS build
 
 WORKDIR /workspace
@@ -11,13 +12,15 @@ COPY portfolio-service/pom.xml portfolio-service/
 COPY transaction-service/pom.xml transaction-service/
 COPY user-service/pom.xml user-service/
 COPY onboarding-service/pom.xml onboarding-service/
+COPY fx-rate-service/pom.xml fx-rate-service/
+COPY coin-metadata-service/pom.xml coin-metadata-service/
 
-RUN mvn dependency:go-offline -pl market-order-scout-service,shared-events -am -q
+RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -pl market-order-scout-service,shared-events -am -q
 
 COPY shared-events/src shared-events/src
 COPY market-order-scout-service/src market-order-scout-service/src
 
-RUN mvn package -pl market-order-scout-service -am -DskipTests -q
+RUN --mount=type=cache,target=/root/.m2 mvn -T 1C package -pl market-order-scout-service -am -DskipTests -q
 
 FROM eclipse-temurin:21-jre-alpine
 

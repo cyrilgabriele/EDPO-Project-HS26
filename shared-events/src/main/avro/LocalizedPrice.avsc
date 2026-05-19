@@ -1,0 +1,49 @@
+{
+  "type": "record",
+  "name": "LocalizedPrice",
+  "namespace": "ch.unisg.cryptoflow.events.avro",
+  "doc": "Crypto price tick joined with FX rates, carrying values per supported Display Currency. Produced by the scope-03 streams app (see ADR-0030) on topic crypto.price.localized, keyed by symbol.",
+  "fields": [
+    { "name": "symbol", "type": "string", "doc": "Normalised Binance symbol, e.g. BTCUSDT" },
+    {
+      "name": "priceUsdt",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 38,
+        "scale": 18
+      },
+      "doc": "Source USDT price from crypto.price.clean"
+    },
+    {
+      "name": "prices",
+      "type": {
+        "type": "map",
+        "values": {
+          "type": "bytes",
+          "logicalType": "decimal",
+          "precision": 38,
+          "scale": 18
+        }
+      },
+      "doc": "Map keyed by ISO-4217 Display Currency code, value = priceUsdt converted via the latest FxRate(USD->ccy)"
+    },
+    { "name": "sourceVenue", "type": "string", "doc": "Origin exchange of the tick" },
+    {
+      "name": "sourceTimestamp",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "Event time from the source venue"
+    },
+    {
+      "name": "enrichedAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "When the join executed (processing time)"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # 05. OHLC Candlestick Aggregation
 
-**Type:** windowed &nbsp;|&nbsp; **Required patterns:** Processing with Local State, Out-of-Sequence Events, Time Windows (Tumbling); optional Interactive Queries, Reprocessing &nbsp;|&nbsp; **Owner:** TBD &nbsp;|&nbsp; **Status:** draft
+**Type:** windowed &nbsp;|&nbsp; **Required patterns:** Processing with Local State, Out-of-Sequence Events, Time Windows (Tumbling); optional Interactive Queries, Reprocessing &nbsp;|&nbsp; **Owner:** Janni &nbsp;|&nbsp; **Status:** ready
 
 ## Purpose
 
@@ -10,6 +10,14 @@ Aggregate `crypto.price.clean` into OHLC (open-high-low-close) bars per symbol f
 
 Candlesticks are table-stakes UI for any crypto platform. They are also the textbook tumbling-window example, the natural feeder for scope 6 (indicators), and the most visual deliverable for the demo/report.
 
+## Decisions locked in
+
+- **Currency:** bars are venue-native (USDT) on a single topic per interval. Display-currency conversion happens at API read time on the consuming endpoint. See [ADR-0031](../adrs/0031_venue_native_ohlc_with_read_time_conversion.md).
+- **Emission:** `suppress(untilWindowCloses)`, one final bar per `(symbol, window)`. No `.live` sibling topic for now.
+- **Serialization:** Avro per [ADR-0032](../adrs/0032_avro_schema_registry_for_derived_events.md).
+- **Volume field dropped.** `CleanPriceTick` carries no volume (scope 02 omits it; Binance tick stream doesn't expose it), so the `Ohlc` schema below uses **`tickCount` only** as the volume proxy. Removed `volume` from the original draft.
+- **Coin metadata enrichment.** Closed bars are joined with `reference.crypto.metadata` (a `GlobalKTable` produced by coin-metadata-service) inside the same topology. The Ohlc schema carries the joined fields (`name`, `imageUrl`, `marketCapRank`, etc.) added backward-compatibly. See [ADR-0033](../adrs/0033_coin_metadata_enrichment_via_global_ktable.md).
+
 ## Patterns hit
 
 | File | Role |
@@ -17,7 +25,9 @@ Candlesticks are table-stakes UI for any crypto platform. They are also the text
 | `07-time-windows.md` | tumbling windows per interval |
 | `11-processing-with-local-state.md` | window state holds in-flight OHLC per symbol per window |
 | `05-time-semantics.md` | event time (venue timestamp) drives window assignment |
+| `32-timestamp-extractor.md` | custom extractor pulls `sourceTimestamp` from `CleanPriceTick` payload |
 | `16-out-of-sequence-events.md` | grace period absorbs late Binance ticks |
+| `33-suppress-operator.md` | emit one final bar per window — see Window emission below |
 | `18-interactive-queries.md` | optional — latest closed bar per symbol |
 | `17-reprocessing.md` | optional — demoed here via offset reset or parallel-version |
 
@@ -60,12 +70,11 @@ symbol:       string
 intervalSec:  int
 windowStart:  timestamp-millis
 windowEnd:    timestamp-millis
-open:         double
-high:         double
-low:          double
-close:        double
-volume:       double
-tickCount:    int
+open:         double                  // USDT
+high:         double                  // USDT
+low:          double                  // USDT
+close:        double                  // USDT
+tickCount:    int                     // volume proxy; see Decisions locked in
 ```
 
 ## State stores
@@ -92,9 +101,35 @@ N/A.
 
 ## Time semantics
 
-- Event time = Binance tick timestamp, extracted via a custom `TimestampExtractor`.
-- Watermark advances with event time.
-- Late events within grace merge into the window; events past grace are dropped (optionally routed to `crypto.ohlc.dropped` for observability).
+- Event time = Binance tick timestamp on `CleanPriceTick`. The producer
+  in scope 2 already stamps `sourceTimestamp`; OHLC reads it via a
+  custom `TimestampExtractor` (see `32-timestamp-extractor.md`) rather
+  than relying on the Kafka record metadata. Reprocessing then yields
+  identical bars regardless of when it runs.
+- Kafka Streams orders the input by extracted timestamp (time-driven
+  data flow), so windows fill deterministically per symbol.
+- Late events within grace merge into the window; events past grace are
+  dropped (optionally routed to `crypto.ohlc.dropped` for
+  observability).
+
+## Window emission — emit on every update vs. suppress
+
+Two valid emission modes; **propose `suppress` until window close** as
+the default contract for `crypto.ohlc.{interval}`:
+
+- **Suppress (proposed)** — one event per `(symbol, window)`, emitted
+  after the window's grace period. Matches the trading semantics of a
+  "closed candle". Downstream (#6 indicators, UI) get a clean,
+  single-shot bar per window.
+- **Emit on every update** — keeps the bar live as ticks arrive. Useful
+  if a UI wants a streaming "current bar" feed; cheaper to add later as
+  a separate `crypto.ohlc.{interval}.live` topic than to push the
+  filtering onto every consumer.
+
+See `33-suppress-operator.md` for the buffer-config trade-off
+(`unbounded().shutDownWhenFull()` vs `maxBytes(...).emitEarlyWhenFull()`).
+Per-symbol window count is bounded (≈ 30–50 symbols × 2 open windows ×
+3 intervals ≪ 1k entries), so unbounded buffering is safe.
 
 ## Processing guarantees
 
@@ -116,12 +151,14 @@ Committing a reprocessing runbook here covers the required pattern 17.
 ```java
 builder.stream("crypto.price.clean",
         Consumed.with(Serdes.String(), cleanSerde)
-                .withTimestampExtractor(new EventTimeExtractor()))
+                .withTimestampExtractor(new CleanPriceTickTimestampExtractor()))
     .groupByKey()
     .windowedBy(TimeWindows.ofSizeAndGrace(
         Duration.ofMinutes(1), Duration.ofSeconds(10)))
     .aggregate(Ohlc::empty, Ohlc::update,
                Materialized.as("ohlc-1m-store"))
+    .suppress(Suppressed.untilWindowCloses(
+        BufferConfig.unbounded().shutDownWhenFull()))     // one bar per window
     .toStream()
     .map((wk, v) -> KeyValue.pair(
         wk.key() + "@" + wk.window().start(), v))
@@ -130,18 +167,19 @@ builder.stream("crypto.price.clean",
 
 ## Open decisions
 
-- [ ] Intervals — 1m + 5m + 1h, or only 1m and derive the rest downstream?
-- [ ] Grace-period values (proposals above).
-- [ ] Emit on every window update, or suppress until window close?
-- [ ] Route late-past-grace events to a dead-letter topic, or drop silently?
-- [ ] Expose IQ? (Propose yes — lightweight.)
-- [ ] Host this as part of portfolio-service, market-data-service, or a new streams app?
+- [x] Emit on every window update, or suppress until window close? → **suppress until window close** ([ADR-0031](../adrs/0031_venue_native_ohlc_with_read_time_conversion.md)). Optional sibling `.live` topic if the UI ever needs streaming bars; not built for now.
+- [x] ~~Per-currency OHLC vs venue-native?~~ → **venue-native USDT** ([ADR-0031](../adrs/0031_venue_native_ohlc_with_read_time_conversion.md)).
+- [x] ~~Avro vs JSON.~~ → **Avro + Schema Registry** ([ADR-0032](../adrs/0032_avro_schema_registry_for_derived_events.md)).
+- [ ] Intervals: 1m + 5m + 1h (proposed), or only 1m and derive the rest downstream? Default: 1m + 5m + 1h.
+- [ ] Grace-period values: defaults in the table above stand unless the demo shows otherwise.
+- [ ] Route late-past-grace events to a dead-letter topic, or drop silently? Propose **drop with a counter** for now; add DLT only if the demo needs it.
+- [ ] Expose IQ? Propose **yes**, with `GET /ohlc/{symbol}/{interval}?n=N`, reusing the IQ plumbing scope 4 wires up.
+- [ ] Host this as part of portfolio-service, market-data-service, or a new streams app? Propose **market-data-service** (transforms market data, sibling to scope-03's enrichment app).
 
 ## ADR candidates
 
-- ADR — OHLC intervals and grace-period policy.
-- ADR — suppress vs emit-on-update.
-- ADR — reprocessing strategy (offset reset vs parallel version).
+- ~~ADR for OHLC intervals and grace-period policy.~~ → operational, not architecturally load-bearing; documented inline above.
+- ~~ADR for reprocessing strategy (offset reset vs parallel version).~~ → demonstrate offset reset as the primary strategy; document the runbook inline, no ADR needed.
 
 ## Related scopes
 

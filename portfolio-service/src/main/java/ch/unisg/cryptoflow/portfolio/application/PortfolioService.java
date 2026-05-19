@@ -5,6 +5,8 @@ import ch.unisg.cryptoflow.portfolio.adapter.out.persistence.PortfolioEntity;
 import ch.unisg.cryptoflow.portfolio.adapter.out.persistence.PortfolioRepository;
 import ch.unisg.cryptoflow.portfolio.adapter.out.persistence.ProcessedTransactionEntity;
 import ch.unisg.cryptoflow.portfolio.adapter.out.persistence.ProcessedTransactionRepository;
+import ch.unisg.cryptoflow.portfolio.domain.DisplayCurrencyCache;
+import ch.unisg.cryptoflow.portfolio.domain.FxRateCache;
 import ch.unisg.cryptoflow.portfolio.domain.LocalPriceCache;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -25,13 +27,42 @@ public class PortfolioService {
     private final PortfolioRepository portfolioRepository;
     private final ProcessedTransactionRepository processedTransactionRepository;
     private final LocalPriceCache localPriceCache;
+    private final FxRateCache fxRateCache;
+    private final DisplayCurrencyCache displayCurrencyCache;
 
     public PortfolioService(PortfolioRepository portfolioRepository,
                             ProcessedTransactionRepository processedTransactionRepository,
-                            LocalPriceCache localPriceCache) {
+                            LocalPriceCache localPriceCache,
+                            FxRateCache fxRateCache,
+                            DisplayCurrencyCache displayCurrencyCache) {
         this.portfolioRepository = portfolioRepository;
         this.processedTransactionRepository = processedTransactionRepository;
         this.localPriceCache = localPriceCache;
+        this.fxRateCache = fxRateCache;
+        this.displayCurrencyCache = displayCurrencyCache;
+    }
+
+    /**
+     * Read-time conversion result: total in USDT plus the same amount converted to the user's
+     * Display Currency. {@code totalUsdt} is empty if any holding's price is not yet cached.
+     * {@code convertedTotal} is empty if {@code totalUsdt} is empty or the FX rate for the user's
+     * Display Currency is not yet cached.
+     */
+    public record ValuationResult(
+            Optional<BigDecimal> totalUsdt,
+            String displayCurrency,
+            Optional<BigDecimal> fxRate,
+            Optional<BigDecimal> convertedTotal) {}
+
+    @Transactional(readOnly = true)
+    public ValuationResult valuation(String userId) {
+        Optional<BigDecimal> totalUsdt = calculateTotalValue(userId);
+        String displayCurrency = displayCurrencyCache.getOrDefault(userId);
+        Optional<BigDecimal> fxRate = fxRateCache.getRate(displayCurrency);
+        Optional<BigDecimal> converted = (totalUsdt.isPresent() && fxRate.isPresent())
+                ? Optional.of(totalUsdt.get().multiply(fxRate.get()).setScale(8, RoundingMode.HALF_UP))
+                : Optional.empty();
+        return new ValuationResult(totalUsdt, displayCurrency, fxRate, converted);
     }
 
     @Transactional(readOnly = true)

@@ -1,0 +1,17 @@
+{
+  "type": "record",
+  "name": "UserDisplayCurrencyUpdated",
+  "namespace": "ch.unisg.cryptoflow.events.avro",
+  "doc": "Emitted by user-service on user creation (default 'USD') and on every PATCH /users/{id}/display-currency. Published to the compacted topic user.display-currency, keyed by userId. See ADR-0028.",
+  "fields": [
+    { "name": "userId", "type": "string" },
+    { "name": "displayCurrency", "type": "string", "doc": "ISO-4217, validated against the supported set {USD, EUR, CHF, GBP}" },
+    {
+      "name": "updatedAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    }
+  ]
+}

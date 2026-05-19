@@ -15,6 +15,9 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.add.type.headers: false
+    properties:
+      # Confluent Schema Registry endpoint for the scope-05 OHLC Avro output (ADR-0031/0032)
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://schema-registry:8081}
 
 # Binance WebSocket stream configuration
 binance:
@@ -29,6 +32,25 @@ crypto:
       price-raw: crypto.price.raw
       price-raw-dlt: crypto.price.raw.DLT
       price-raw-partitions: 3
+      ohlc-1m: crypto.ohlc.1m
+      ohlc-5m: crypto.ohlc.5m
+      ohlc-1h: crypto.ohlc.1h
+      crypto-metadata: reference.crypto.metadata
+
+# Scope-05 OHLC Kafka Streams app (see ADR-0031, event-processes/05-ohlc-candles.md).
+# Source: crypto.price.raw (JSON). Outputs Avro Ohlc, one bar per (symbol, window) after window close.
+ohlc:
+  application-id: ${OHLC_APP_ID:market-data-ohlc}
+  windows:
+    one-minute:
+      size: PT1M
+      grace: PT10S
+    five-minutes:
+      size: PT5M
+      grace: PT30S
+    one-hour:
+      size: PT1H
+      grace: PT2M
 
 management:
   endpoints:
