@@ -12,11 +12,17 @@ public record UserSymbolKey(String userId, String symbol) {
     private static final String DELIMITER = "|";
 
     public static String encode(String userId, String symbol) {
-        if (userId == null || symbol == null) {
-            throw new IllegalArgumentException("userId and symbol must be non-null");
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId must not be null or blank");
+        }
+        if (symbol == null || symbol.isBlank()) {
+            throw new IllegalArgumentException("symbol must not be null or blank");
         }
         if (userId.contains(DELIMITER)) {
             throw new IllegalArgumentException("userId must not contain '" + DELIMITER + "'");
+        }
+        if (symbol.contains(DELIMITER)) {
+            throw new IllegalArgumentException("symbol must not contain '" + DELIMITER + "'");
         }
         return userId + DELIMITER + symbol.toUpperCase(Locale.ROOT);
     }

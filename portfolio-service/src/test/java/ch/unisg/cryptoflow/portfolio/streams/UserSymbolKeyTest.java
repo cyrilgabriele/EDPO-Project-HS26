@@ -36,4 +36,22 @@ class UserSymbolKeyTest {
         assertThatThrownBy(() -> UserSymbolKey.decode("nodelimiter"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void rejectsBlankUserId() {
+        assertThatThrownBy(() -> UserSymbolKey.encode("   ", "BTCUSDT"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsBlankSymbol() {
+        assertThatThrownBy(() -> UserSymbolKey.encode("u-1", ""))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsSymbolContainingDelimiter() {
+        assertThatThrownBy(() -> UserSymbolKey.encode("u-1", "BTC|USDT"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }
