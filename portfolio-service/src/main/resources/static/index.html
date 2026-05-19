@@ -151,6 +151,25 @@
       padding: 0.1rem 0.55rem;
       text-transform: uppercase;
     }
+    .dc-select {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      background: #1a3a2e;
+      color: #86efac;
+      border: 1px solid #22c55e;
+      border-radius: 999px;
+      padding: 0.1rem 1.4rem 0.1rem 0.55rem;
+      text-transform: uppercase;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath fill='%2386efac' d='M0 0l4 6 4-6z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.5rem center;
+    }
+    .dc-select:hover { background-color: #14532d; }
+    .dc-select:disabled { opacity: 0.5; cursor: wait; }
     .uid-row {
       display: flex;
       align-items: center;
@@ -435,7 +454,11 @@
               <div>
                 <div class="uname">
                   ${p.userName || '(unnamed)'}
-                  <span class="dc-badge">${dc}</span>
+                  <select class="dc-select" data-userid="${uid}" data-currency="${dc}" onchange="changeDisplayCurrency(this)">
+                    ${['USD','EUR','CHF','GBP'].map(c =>
+                      `<option value="${c}" ${c === dc ? 'selected' : ''}>${c}</option>`
+                    ).join('')}
+                  </select>
                 </div>
                 <div class="uid-row">
                   <span class="uid">${uid}</span>
@@ -479,6 +502,44 @@
         btn.textContent = '📋';
       }, 1500);
     });
+  }
+
+  // Calls user-service's PATCH endpoint to change a user's Display Currency.
+  // The portfolio-service consumer of user.display-currency then updates the
+  // in-memory KTable replica, and the next /api/dashboard refresh shows the
+  // new currency end-to-end. CORS on user-service is opened for this in dev.
+  const USER_SERVICE_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+      ? 'http://' + location.hostname + ':8084'
+      : (location.protocol + '//' + location.hostname + ':8084');
+
+  async function changeDisplayCurrency(sel) {
+    const userId = sel.dataset.userid;
+    const previous = sel.dataset.currency;
+    const next = sel.value;
+    if (!userId || next === previous) return;
+    sel.disabled = true;
+    try {
+      const res = await fetch(USER_SERVICE_BASE + '/users/' + encodeURIComponent(userId) + '/display-currency', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayCurrency: next })
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert('Could not change Display Currency: ' + (body.error || ('HTTP ' + res.status)));
+        sel.value = previous;
+        return;
+      }
+      sel.dataset.currency = next;
+      // Force a refresh so the new currency is visible immediately.
+      // The consumer typically catches up within ~1s.
+      setTimeout(refresh, 600);
+    } catch (err) {
+      alert('Network error contacting user-service: ' + err.message);
+      sel.value = previous;
+    } finally {
+      sel.disabled = false;
+    }
   }
 
   refresh();

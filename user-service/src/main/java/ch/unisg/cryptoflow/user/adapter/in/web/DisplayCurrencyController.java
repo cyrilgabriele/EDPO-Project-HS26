@@ -6,6 +6,7 @@ import ch.unisg.cryptoflow.user.application.service.UpdateDisplayCurrencyService
 import ch.unisg.cryptoflow.user.domain.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,6 +20,8 @@ import java.util.Objects;
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
+// Dev-only: let the portfolio-service dashboard (port 8082) call this endpoint from the browser.
+@CrossOrigin(origins = "*", methods = {org.springframework.web.bind.annotation.RequestMethod.PATCH, org.springframework.web.bind.annotation.RequestMethod.OPTIONS})
 public class DisplayCurrencyController {
 
     private final UpdateDisplayCurrencyUseCase updateDisplayCurrencyUseCase;
