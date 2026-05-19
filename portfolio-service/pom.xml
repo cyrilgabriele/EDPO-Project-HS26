@@ -58,6 +58,16 @@
             <artifactId>kafka-avro-serializer</artifactId>
         </dependency>
 
+        <!-- Kafka Streams for the scope-04 portfolio valuation topology -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-streams</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-streams-avro-serde</artifactId>
+        </dependency>
+
         <!-- Java 8 date/time types (Instant) serialisation -->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
