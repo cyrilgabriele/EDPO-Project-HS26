@@ -52,7 +52,7 @@ import java.util.Map;
  *       an internal repartition before the per-user aggregate.</li>
  *   <li>Processing with Local State — materialised
  *       {@code portfolio-value-store} backs the IQ endpoint.</li>
- *   <li>Interactive Queries — see {@code PortfolioValueStoreReader} (added in scope-04 IQ task).</li>
+ *   <li>Interactive Queries — see {@link PortfolioValueStoreReader}.</li>
  * </ul>
  */
 @Configuration
