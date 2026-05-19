@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ──────────────────────────────────────────────────
 # Stage 1 – Build (Maven + Temurin JDK 21)
 # ──────────────────────────────────────────────────
@@ -19,14 +20,14 @@ COPY fx-rate-service/pom.xml fx-rate-service/
 COPY coin-metadata-service/pom.xml coin-metadata-service/
 
 # Pre-download dependencies for faster rebuilds
-RUN mvn dependency:go-offline -pl user-service,shared-events -am -q
+RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -pl user-service,shared-events -am -q
 
 # Copy the actual sources
 COPY shared-events/src shared-events/src
 COPY user-service/src user-service/src
 
 # Build the executable jar without running tests
-RUN mvn package -pl user-service -am -DskipTests -q
+RUN --mount=type=cache,target=/root/.m2 mvn -T 1C package -pl user-service -am -DskipTests -q
 
 # ──────────────────────────────────────────────────
 # Stage 2 – Runtime (Temurin JRE 21)

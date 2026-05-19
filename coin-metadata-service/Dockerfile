@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Stage 1: Build (Maven + JDK 21)
 FROM maven:3.9-eclipse-temurin-21-alpine AS build
 
@@ -15,12 +16,12 @@ COPY onboarding-service/pom.xml onboarding-service/
 COPY fx-rate-service/pom.xml fx-rate-service/
 COPY coin-metadata-service/pom.xml coin-metadata-service/
 
-RUN mvn dependency:go-offline -pl coin-metadata-service,shared-events -am -q
+RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -pl coin-metadata-service,shared-events -am -q
 
 COPY shared-events/src shared-events/src
 COPY coin-metadata-service/src coin-metadata-service/src
 
-RUN mvn package -pl coin-metadata-service -am -DskipTests -q
+RUN --mount=type=cache,target=/root/.m2 mvn -T 1C package -pl coin-metadata-service -am -DskipTests -q
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre-alpine

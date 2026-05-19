@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ──────────────────────────────────────────────────
 # Stage 1 – Build (Maven + JDK 21)
 # ──────────────────────────────────────────────────
@@ -19,14 +20,14 @@ COPY fx-rate-service/pom.xml fx-rate-service/
 COPY coin-metadata-service/pom.xml coin-metadata-service/
 
 # Pre-download dependencies (cached as a layer)
-RUN mvn dependency:go-offline -pl transaction-service,shared-events -am -q
+RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -pl transaction-service,shared-events -am -q
 
 # Copy source code
 COPY shared-events/src shared-events/src
 COPY transaction-service/src transaction-service/src
 
 # Build the fat JAR
-RUN mvn package -pl transaction-service -am -DskipTests -q
+RUN --mount=type=cache,target=/root/.m2 mvn -T 1C package -pl transaction-service -am -DskipTests -q
 
 # ──────────────────────────────────────────────────
 # Stage 2 – Runtime (JRE 21)
