@@ -412,6 +412,8 @@
         return;
       }
 
+      if (pGrid.contains(document.activeElement)) return;
+
       pGrid.innerHTML = portfolios.map(p => {
         const dc = p.displayCurrency || 'USD';
         const holdingRows = (p.holdings || []).length === 0
