@@ -4,8 +4,8 @@ import ch.unisg.cryptoflow.events.CryptoPriceUpdatedEvent;
 import ch.unisg.cryptoflow.events.OrderApprovedEvent;
 import ch.unisg.cryptoflow.events.avro.PortfolioValue;
 import ch.unisg.cryptoflow.events.avro.PositionValue;
-import ch.unisg.cryptoflow.events.avro.SpecificAvroSerde;
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
+import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
@@ -52,7 +52,7 @@ import java.util.Map;
  *       an internal repartition before the per-user aggregate.</li>
  *   <li>Processing with Local State — materialised
  *       {@code portfolio-value-store} backs the IQ endpoint.</li>
- *   <li>Interactive Queries — see {@link PortfolioValueStoreReader}.</li>
+ *   <li>Interactive Queries — see {@code PortfolioValueStoreReader} (added in scope-04 IQ task).</li>
  * </ul>
  */
 @Configuration
@@ -138,17 +138,19 @@ public class PortfolioValuationStreamConfig {
                 "ch.unisg.cryptoflow.portfolio.streams");
         holdingSerde.deserializer().setUseTypeHeaders(false);
 
-        // PositionValue is an Avro-generated record; JsonSerde + Jackson cannot
-        // serialise it because Jackson tries to walk SpecificData.conversions →
-        // DecimalConversion.getRecommendedSchema(), which throws (the bytes/
-        // decimal logical type has no recommended schema without a scale).
-        // The local binary SpecificAvroSerde sidesteps Jackson entirely.
-        SpecificAvroSerde<PositionValue> positionValueSerde =
-                new SpecificAvroSerde<>(PositionValue.class, PositionValue.getClassSchema());
-        positionValueSerde.configure(serdeConfig, false);
+        // PositionValue is internal state-store-only — never written to a topic
+        // consumers care about. Use the local registryless binary serde to avoid
+        // a Schema Registry round-trip on every state-store read/write. Jackson
+        // cannot serialise Avro decimal types (DecimalConversion.getRecommendedSchema
+        // throws without a scale), so JsonSerde is not an option either.
+        // Local binary serde — does not consult serdeConfig (no Schema Registry).
+        ch.unisg.cryptoflow.events.avro.SpecificAvroSerde<PositionValue> positionValueSerde =
+                new ch.unisg.cryptoflow.events.avro.SpecificAvroSerde<>(
+                        PositionValue.class, PositionValue.getClassSchema());
 
-        SpecificAvroSerde<PortfolioValue> portfolioValueSerde =
-                new SpecificAvroSerde<>(PortfolioValue.class, PortfolioValue.getClassSchema());
+        // Confluent registry-aware serde so consumers using KafkaAvroDeserializer
+        // can decode the output (ADR-0032).
+        SpecificAvroSerde<PortfolioValue> portfolioValueSerde = new SpecificAvroSerde<>();
         portfolioValueSerde.configure(serdeConfig, false);
 
         // ── Holdings KTable: signed-sum fold per (userId, symbol) ────────────

@@ -4,7 +4,7 @@ import ch.unisg.cryptoflow.events.CryptoPriceUpdatedEvent;
 import ch.unisg.cryptoflow.events.OrderApprovedEvent;
 import ch.unisg.cryptoflow.events.avro.PortfolioValue;
 import ch.unisg.cryptoflow.events.avro.PositionValue;
-import ch.unisg.cryptoflow.events.avro.SpecificAvroSerde;
+import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
 import io.confluent.kafka.schemaregistry.testutil.MockSchemaRegistry;
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import org.apache.kafka.common.serialization.Serdes;
@@ -67,7 +67,7 @@ class PortfolioValuationTopologyTests {
         priceInput = driver.createInputTopic(PRICE_TOPIC, new StringSerializer(),
                 new JsonSerializer<>());
 
-        portfolioValueSerde = new SpecificAvroSerde<>(PortfolioValue.class, PortfolioValue.getClassSchema());
+        portfolioValueSerde = new SpecificAvroSerde<>();
         portfolioValueSerde.configure(
                 Map.of(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, SCHEMA_REGISTRY_URL),
                 false);
