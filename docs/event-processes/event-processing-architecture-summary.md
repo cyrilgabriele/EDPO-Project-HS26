@@ -108,7 +108,7 @@ flowchart TB
     TRS -->|transaction.order.approved JSON| PFS
 ```
 
-Solid arrows are the runtime data flow on the hot path across context boundaries. Dotted arrows are the scope-03 `crypto.price.localized` route — designed and ADR-locked (ADR-0030), planned as a `@Configuration` streams module inside `market-data-service`, but not yet shipped. In the current slice every consumer reads `reference.fx.rate` directly from fx-rate-service and does the multiplication on read (see §3.6).
+Solid arrows are the runtime data flow on the hot path across context boundaries. Dotted arrows are the scope-03 `crypto.price.localized` route — designed and ADR-locked (ADR-0030). In the current slice every consumer reads `reference.fx.rate` directly from fx-rate-service and does the multiplication on read (see §3.6).
 
 Intra-service producer / consumer relationships (e.g. `transaction-service` producing `transaction.buy-bids` from the place-order worker and reading it back inside the bid/ask matcher, or `market-data-service` consuming its own `crypto.ohlc.*` for the dashboard) are deliberately omitted from this context-level view — they live inside one service and don't cross the boundary the diagram is meant to show. They appear in the per-pipeline topology diagrams in §3.
 
