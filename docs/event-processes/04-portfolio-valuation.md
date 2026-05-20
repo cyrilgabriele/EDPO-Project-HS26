@@ -1,6 +1,6 @@
 # 04. Real-Time Portfolio Valuation
 
-**Type:** stateful &nbsp;|&nbsp; **Required patterns:** Stream-Table Join, Table-Table Join, Processing with Local State, Multiphase Repartitioning, Interactive Queries &nbsp;|&nbsp; **Owner:** Janni &nbsp;|&nbsp; **Status:** draft
+**Type:** stateful &nbsp;|&nbsp; **Required patterns:** Stream-Table Join, Table-Table Join, Processing with Local State, Multiphase Repartitioning, Interactive Queries &nbsp;|&nbsp; **Owner:** Janni &nbsp;|&nbsp; **Status:** implemented (ADR-0034)
 
 ## Purpose
 
@@ -34,14 +34,14 @@ Single most pattern-dense app in the set — covers table-table join, per-key ag
 transaction.order.approved
        │
        ▼ (fold signed qty into holdings table)
- holdings KTable                         crypto.price.clean
+ holdings KTable                         crypto.price.raw
  key: (userId, symbol)                         │
  value: qty                                    ▼ (toTable, keep latest per symbol)
        │                                 prices KTable
        │                                 key: symbol
        └──────────── FK join on symbol ──────┘
                            │
-                           ▼ (qty × priceUsd)
+                           ▼ (qty × priceUsdt)
               position-value KTable
               key: (userId, symbol)
                            │
@@ -52,8 +52,7 @@ transaction.order.approved
           ┌────────────────┴───────────────┐
           ▼                                ▼
  portfolio.value.updated         Interactive queries
- (key = userId)                  GET /portfolio/{user}/value
-                                 GET /portfolio/{user}/breakdown
+ (key = userId)                  GET /portfolios/{userId}/streams-value
 ```
 
 ## Inputs
@@ -61,7 +60,7 @@ transaction.order.approved
 | Topic | Type | Key | Value |
 |---|---|---|---|
 | `transaction.order.approved` | KStream | userId (or orderId) | existing `OrderApprovedEvent` |
-| `crypto.price.clean`         | KStream | symbol | `CleanPriceTick` |
+| `crypto.price.raw`           | KStream | symbol | existing `CryptoPriceUpdatedEvent` |
 
 ## Outputs
 
@@ -69,16 +68,15 @@ transaction.order.approved
 |---|---|---|---|
 | `portfolio.value.updated` | compact | userId | `PortfolioValue` (Avro) |
 
-### Avro — `ch.unisg.cryptoflow.shared.events.portfolio.PortfolioValue`
+### Avro — `ch.unisg.cryptoflow.events.avro.PortfolioValue`
 
 ```
 userId:     string
-totalUsd:   double
+totalUsdt:  decimal
 breakdown:  array<{
-    symbol:   string
-    qty:      double
-    priceUsd: double
-    valueUsd: double
+    symbol:    string
+    quantity:  decimal
+    valueUsdt: decimal
 }>
 asOf:       timestamp-millis
 ```
@@ -87,9 +85,9 @@ asOf:       timestamp-millis
 
 | Store | Type | Key | Value |
 |---|---|---|---|
-| `holdings-store`        | KTable | `(userId, symbol)` | `double qty` |
-| `latest-price-store`    | KTable | symbol | `double priceUsd` |
-| `position-value-store`  | KTable | `(userId, symbol)` | `double valueUsd` |
+| `portfolio-valuation-holdings-store` | KTable | `userId|symbol` | `Holding(symbol, quantity)` |
+| `portfolio-valuation-prices-store` | KTable | symbol | `BigDecimal priceUsdt` |
+| `portfolio-valuation-position-value-store` | KTable | `userId|symbol` | `PositionValue` |
 | `portfolio-value-store` | KTable | userId | `PortfolioValue` |
 
 ## Joins
@@ -103,15 +101,15 @@ N/A (continuous, non-windowed). Valuations are point-in-time.
 
 ## Processing guarantees
 
-- At-least-once by default.
-- **Exactly-once-v2 recommended** for this app to prevent double-counting positions on retries.
-- If the app also writes to Postgres, keep the existing `ProcessedTransactionRepository` idempotency pattern (catalog file 30).
+- **At-least-once** for the Kafka Streams app.
+- Folds are commutative and associative: signed order quantities fold into holdings; latest price ticks materialise into a KTable.
+- The existing Postgres-backed consumer still keeps its `ProcessedTransactionRepository` idempotency pattern (catalog file 30).
 
 ## Interactive queries
 
-- `GET /portfolio/{userId}/value` — latest `totalUsd`.
-- `GET /portfolio/{userId}/breakdown` — per-position detail.
-- Implement the standard "metadata lookup + redirect" so any instance can serve any key during rebalance.
+- `GET /portfolios/{userId}/streams-value` — latest USDT total and per-symbol breakdown from `portfolio-value-store`.
+- `GET /portfolios/{userId}/value` remains the existing Postgres-backed comparison endpoint.
+- Multi-instance metadata lookup and redirect is out of scope for the course dev stack; dev runs one portfolio-service replica.
 
 ## Reprocessing strategy (cross-cutting — candidate scope)
 
@@ -121,25 +119,29 @@ N/A (continuous, non-windowed). Valuations are point-in-time.
 ## Implementation sketch (Kafka Streams DSL)
 
 ```java
-KTable<String, Double> prices = builder
-    .stream("crypto.price.clean", ...)
+KTable<String, BigDecimal> prices = builder
+    .stream("crypto.price.raw", ...)
     .toTable()
-    .mapValues(CleanPriceTick::priceUsd);
+    .mapValues(CryptoPriceUpdatedEvent::price);
 
-KTable<UserSymbol, Double> holdings = builder
+KTable<String, Holding> holdings = builder
     .stream("transaction.order.approved", ...)
-    .groupBy((k, v) -> new UserSymbol(v.userId(), v.symbol()))
-    .aggregate(() -> 0.0, (k, order, qty) -> qty + signedQty(order));
+    .selectKey((k, v) -> UserSymbolKey.encode(v.userId(), v.symbol()))
+    .mapValues(v -> new Holding(v.symbol().toUpperCase(), SignedQuantity.of(v)))
+    .groupByKey()
+    .aggregate(() -> new Holding("", BigDecimal.ZERO),
+               (k, delta, current) -> new Holding(
+                   delta.symbol(), current.quantity().add(delta.quantity())));
 
-// FK extractor needs access to the holdings KEY (symbol lives in the
-// composite key, not the value), so use the BiFunction<K, V, KO> overload.
-KTable<UserSymbol, Double> positionValue = holdings
-    .join(prices, (us, qty) -> us.symbol(), (qty, price) -> qty * price);
+// Kafka Streams 3.x FK extractor is value-only, so Holding carries symbol.
+KTable<String, PositionValue> positionValue = holdings
+    .join(prices, Holding::symbol, (holding, price) -> value(holding, price));
 
 KTable<String, PortfolioValue> portfolio = positionValue
-    .groupBy((us, v) -> KeyValue.pair(us.userId(), entry(us.symbol(), v)))
-    .aggregate(PortfolioValue::empty,
-               PortfolioValue::add, PortfolioValue::subtract,
+    .groupBy((key, v) -> KeyValue.pair(UserSymbolKey.decode(key).userId(), v))
+    .aggregate(() -> PortfolioValueAggregator.empty(""),
+               (userId, pv, agg) -> PortfolioValueAggregator.add(userId, pv, agg, Instant.now()),
+               (userId, pv, agg) -> PortfolioValueAggregator.subtract(userId, pv, agg, Instant.now()),
                Materialized.as("portfolio-value-store"));
 
 portfolio.toStream().to("portfolio.value.updated", ...);
@@ -147,18 +149,18 @@ portfolio.toStream().to("portfolio.value.updated", ...);
 
 ## Open decisions
 
-- [ ] Processing guarantee — at-least-once vs exactly-once-v2 (propose EoS).
-- [ ] Consume `crypto.price.clean` (propose) vs `crypto.price.raw`.
-- [ ] Emit per-tick value, or throttle (only on material change > 0.1%)?
-- [ ] IQ host — portfolio-service (propose) vs dedicated streams service.
-- [ ] State store vs Postgres — authoritative source for holdings? Propose state store with Postgres as an optional read-model.
-- [ ] Handle *signed* quantity from orders — buy = +qty, sell = −qty.
+All resolved by [ADR-0034](../adrs/0034_portfolio_valuation_streams_app.md):
+
+- [x] Processing guarantee → **at_least_once** (folds are commutative and associative; retries cannot double-count).
+- [x] Price input → **`crypto.price.raw`** (USDT-canonical; localisation stays at API read time per ADR-0028/0031).
+- [x] Emit policy → emit on every change to the user's aggregate (no throttle; downstream consumers see the natural KTable changelog).
+- [x] IQ host → **portfolio-service** (`GET /portfolios/{userId}/streams-value`); the existing `/value` Postgres endpoint stays for comparison.
+- [x] State store vs Postgres for holdings → **both, parallel projections** of `transaction.order.approved`; the Streams store is authoritative for valuations, Postgres remains the system of record for the holding rows surfaced by the existing UI.
+- [x] Signed quantity → centralised in `SignedQuantity.of(OrderApprovedEvent)`; today returns `+amount` (only buys exist). Sell flow only changes this helper.
 
 ## ADR candidates
 
-- ADR — processing guarantees for portfolio app.
-- ADR — state store vs Postgres for holdings.
-- ADR — IQ endpoint placement and rebalance-safe lookup strategy.
+Subsumed by [ADR-0034](../adrs/0034_portfolio_valuation_streams_app.md).
 
 ## Related scopes
 

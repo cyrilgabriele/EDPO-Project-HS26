@@ -14,10 +14,12 @@ CryptoFlow is a multi-service crypto portfolio simulation platform built with Ap
 | `market-data-service` | `8081` | Subscribes to Binance WebSocket streams, publishes `crypto.price.raw` |
 | `market-order-scout-service` | `8086` | Consumes `crypto.scout.raw`, derives Market Scout ask quotes, ask opportunities, and window summaries |
 | `market-partial-book-ingestion-service` | `8087` | Subscribes to Binance USD-M partial book depth streams, publishes `crypto.scout.raw` |
-| `portfolio-service` | `8082` | Maintains a local price cache, stores holdings, exposes read APIs |
+| `portfolio-service` | `8082` | Maintains price/holding read models, publishes `portfolio.value.updated`, exposes Postgres and Streams valuation APIs |
 | `transaction-service` | `8083` | Runs the place-order BPMN, matches orders, publishes `transaction.order.approved` |
 | `user-service` | `8084` | Stores users and confirmation links, handles onboarding compensation |
 | `onboarding-service` | `8085` | Deploys `userOnboarding.bpmn` to Camunda 8 |
+
+`portfolio-service` publishes `portfolio.value.updated` — the scope-04 valuation KTable changelog — and exposes it through `GET /portfolios/{userId}/streams-value`.
 
 ## Deploying the stack
 

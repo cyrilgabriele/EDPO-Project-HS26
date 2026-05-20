@@ -30,11 +30,15 @@ COPY portfolio-service/src portfolio-service/src
 RUN --mount=type=cache,target=/root/.m2 mvn -T 1C package -pl portfolio-service -am -DskipTests -q
 
 # ──────────────────────────────────────────────────
-# Stage 2 – Runtime (JRE 21 slim)
+# Stage 2 – Runtime (JRE 21)
 # ──────────────────────────────────────────────────
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /workspace/portfolio-service/target/*.jar app.jar
 

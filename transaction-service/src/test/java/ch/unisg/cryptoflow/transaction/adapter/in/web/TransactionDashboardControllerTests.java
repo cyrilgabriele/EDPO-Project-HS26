@@ -10,6 +10,7 @@ import ch.unisg.cryptoflow.transaction.adapter.out.persistence.MatchingAuditOrde
 import ch.unisg.cryptoflow.transaction.adapter.out.persistence.MatchingAuditOrderMatchRepository;
 import ch.unisg.cryptoflow.transaction.adapter.out.persistence.SpringDataOutboxEventRepository;
 import ch.unisg.cryptoflow.transaction.adapter.out.persistence.SpringDataTransactionRecordRepository;
+import ch.unisg.cryptoflow.transaction.domain.DisplayCurrencyCache;
 import ch.unisg.cryptoflow.transaction.avro.BuyBid;
 import ch.unisg.cryptoflow.transaction.avro.OrderMatched;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,8 @@ class TransactionDashboardControllerTests {
                 repository(MatchingAuditOrderMatchRepository.class, List.of(matchEntity()));
 
         TransactionDashboardController controller = new TransactionDashboardController(
-                transactionRepo, outboxRepo, confirmedUserRepo, buyBidRepo, askRepo, matchRepo);
+                transactionRepo, outboxRepo, confirmedUserRepo, buyBidRepo, askRepo, matchRepo,
+                new DisplayCurrencyCache());
 
         Map<String, Object> dashboard = controller.dashboard();
 

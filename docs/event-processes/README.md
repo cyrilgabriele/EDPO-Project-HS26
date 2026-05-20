@@ -26,17 +26,17 @@ Working specs for the stream-processing extensions to CryptoFlow, one file per s
 
 ## Coverage vs the required pattern list
 
-| Required pattern | Scope(s) |
-|---|---|
-| Single-Event Processing | 1, 2 |
-| Processing with Local State | 4, 5, 6 |
-| Multiphase Processing / Repartitioning | 4 (table-join → groupBy user), 6 if fed from 5 |
-| Stream-Table Join (external lookup) | 3, 4 |
-| Table-Table Join | 4 (prices KTable × holdings KTable) |
-| Streaming Join | — **gap**, closed by order-book option 3 |
-| Out-of-Sequence Events | 5, 6 (grace period) |
-| Reprocessing | cross-cutting — commit to demonstrating on 5 or 6 |
-| Interactive Queries | 4 (portfolio); optionally 5 (latest candle) |
+| Required pattern | Scope(s) | Shipped? |
+|---|---|---|
+| Single-Event Processing | 1, 2 | 1 ✅ |
+| Processing with Local State | 4, 5, 6 | 4 ✅, 5 ✅ |
+| Multiphase Processing / Repartitioning | 4 (table-join → groupBy user) | 4 ✅ |
+| Stream-Table Join (external lookup) | 3, 4 (FK), 5 (coin-metadata GlobalKTable) | 4 ✅, 5 ✅ |
+| Table-Table Join | 4 (prices KTable × holdings KTable) | 4 ✅ |
+| Streaming Join | — **gap**, closed by order-book option 3 | ❌ |
+| Out-of-Sequence Events | 5, 6 (grace period) | 5 ✅ |
+| Reprocessing | cross-cutting — fresh applicationId rebuilds state from `transaction.order.approved` + `crypto.price.raw` | 4 ✅ |
+| Interactive Queries | 4 (portfolio), market-scout dashboard | 4 ✅, scout ✅ |
 
 ## Cross-cutting concerns
 

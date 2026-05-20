@@ -47,6 +47,14 @@ crypto:
       order-approved: transaction.order.approved
       fx-rate: reference.fx.rate
       user-display-currency: user.display-currency
+      portfolio-value: portfolio.value.updated
+
+# Scope-04 portfolio valuation Kafka Streams app (event-processes/04-portfolio-valuation.md).
+# Inputs: transaction.order.approved (JSON), crypto.price.raw (JSON).
+# Output: portfolio.value.updated (Avro, compacted, keyed by userId).
+portfolio:
+  valuation:
+    application-id: ${PORTFOLIO_VALUATION_APP_ID:portfolio-service-valuation}
 
 management:
   endpoints:

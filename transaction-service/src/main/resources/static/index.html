@@ -130,6 +130,9 @@
     .user-card .uname { font-weight: 700; color: #e2e8f0; font-size: 0.9rem; }
     .user-card .uid-label { font-size: 0.72rem; color: #4a5568; font-family: monospace; margin-top: 0.2rem; word-break: break-all; }
     .user-card .conf-time { font-size: 0.75rem; color: #22c55e; margin-top: 0.4rem; }
+    .user-card .display-currency { font-size: 0.75rem; color: #94a3b8; margin-top: 0.25rem; }
+    .user-card { cursor: pointer; }
+    .user-card:hover { border-color: #4a6fa5; background: #1e2a3a; }
     .empty-users { color: #4a5568; text-align: center; padding: 1.5rem; font-size: 0.9rem; }
 
     .audit-grid {
@@ -264,7 +267,7 @@
 
     <div class="quote-controls">
       <label for="quote-user">User ID</label>
-      <input id="quote-user" type="text" value="alice" autocomplete="off" />
+      <input id="quote-user" type="text" autocomplete="off" />
 
       <label for="quote-symbol">Symbol</label>
       <select id="quote-symbol">
@@ -484,6 +487,11 @@
     }
   }
 
+  function selectQuoteUser(userId) {
+    const input = document.getElementById('quote-user');
+    if (input) { input.value = userId; refreshQuote(); }
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
     refreshQuote();
     setInterval(refreshQuote, QUOTE_REFRESH_MS);
@@ -545,14 +553,16 @@
       // --- Confirmed Users ---
       const users = data.confirmedUsers || [];
       const userGrid = document.getElementById('user-grid');
+      const quoteUserInput = document.getElementById('quote-user');
       if (users.length === 0) {
         userGrid.innerHTML = '<div class="empty-users">No confirmed users yet — complete onboarding first.</div>';
       } else {
         userGrid.innerHTML = users.map(u => `
-          <div class="user-card">
+          <div class="user-card" onclick="selectQuoteUser('${u.userId}')" title="Click to use in quote widget">
             <div class="uname">${u.userName || '(no name)'}</div>
             <div class="uid-label">${u.userId}</div>
             <div class="conf-time">confirmed ${fmtTime(u.confirmedAt)}</div>
+            <div class="display-currency">${u.displayCurrency || 'USD'}</div>
           </div>
         `).join('');
       }
