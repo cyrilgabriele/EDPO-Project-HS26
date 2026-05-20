@@ -46,6 +46,10 @@ public class QuoteController {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("error", "No price cached for symbol " + normalisedSymbol + " yet"));
         }
+        if (!displayCurrencies.isReady()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", "Display currency cache is still warming up — retry in a moment"));
+        }
         String dc = displayCurrencies.getOrDefault(userId);
         Optional<BigDecimal> fxRate = fxRates.getRate(dc);
 

@@ -6,6 +6,7 @@ import ch.unisg.cryptoflow.transaction.adapter.out.persistence.MatchingAuditMatc
 import ch.unisg.cryptoflow.transaction.adapter.out.persistence.MatchingAuditOrderMatchRepository;
 import ch.unisg.cryptoflow.transaction.adapter.out.persistence.SpringDataOutboxEventRepository;
 import ch.unisg.cryptoflow.transaction.adapter.out.persistence.SpringDataTransactionRecordRepository;
+import ch.unisg.cryptoflow.transaction.domain.DisplayCurrencyCache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -31,6 +32,7 @@ public class TransactionDashboardController {
     private final MatchingAuditBuyBidRepository buyBidRepo;
     private final MatchingAuditMatchableAskRepository matchableAskRepo;
     private final MatchingAuditOrderMatchRepository orderMatchRepo;
+    private final DisplayCurrencyCache displayCurrencies;
 
     @GetMapping
     public Map<String, Object> dashboard() {
@@ -62,9 +64,10 @@ public class TransactionDashboardController {
         var confirmedUsers = confirmedUserRepo.findAll(
                 Sort.by(Sort.Direction.DESC, "confirmedAt")
         ).stream().map(u -> Map.of(
-                "userId",      u.getUserId(),
-                "userName",    u.getUserName() != null ? u.getUserName() : "",
-                "confirmedAt", u.getConfirmedAt().toString()
+                "userId",          u.getUserId(),
+                "userName",        u.getUserName() != null ? u.getUserName() : "",
+                "confirmedAt",     u.getConfirmedAt().toString(),
+                "displayCurrency", displayCurrencies.getOrDefault(u.getUserId())
         )).toList();
 
         var buyBids = buyBidRepo.findAll(
