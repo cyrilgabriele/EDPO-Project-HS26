@@ -9,7 +9,7 @@
   "id": "opsInterventionForm",
   "components": [
     {
-      "text": "## Ops Intervention Required\n\nA critical error occurred in the order processing pipeline. Review the details below, investigate the issue, and complete this task once resolved.\n",
+      "text": "## Ops Intervention Required\n\nA deterministic error occurred in the order processing pipeline. Review the details below, fix the root cause, and complete this task to resume the process. Closing the task without fixing the root cause is safe — the same task will reappear if the boundary error fires again.\n\n- **Approval Failure**: the order resumes by retrying the Approve Order step (restore the missing transaction record before closing).\n- **Publish Failure**: the order resumes by sending the executed email — the Kafka event has already been published, so no retry of the publish step occurs.\n",
       "type": "text",
       "layout": {
         "row": "Row_header",

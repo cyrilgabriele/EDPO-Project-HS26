@@ -24,10 +24,8 @@
         <bpmn:flowNodeRef>Activity_0t8bldn</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Activity_ops_approve_error</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Activity_ops_publish_error</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Event_ops_approve_end</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>BoundaryEvent_publish_error</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>BoundaryEvent_approve_error</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Event_ops_publish_end</bpmn:flowNodeRef>
         <bpmn:childLaneSet id="LaneSet_16qqtvv">
           <bpmn:lane id="Lane_06hqbtu" name="Order Executed">
             <bpmn:flowNodeRef>Event_1auq9lb</bpmn:flowNodeRef>
@@ -37,10 +35,8 @@
             <bpmn:flowNodeRef>Event_06aqhe0</bpmn:flowNodeRef>
             <bpmn:flowNodeRef>Activity_ops_approve_error</bpmn:flowNodeRef>
             <bpmn:flowNodeRef>Activity_ops_publish_error</bpmn:flowNodeRef>
-            <bpmn:flowNodeRef>Event_ops_approve_end</bpmn:flowNodeRef>
             <bpmn:flowNodeRef>BoundaryEvent_publish_error</bpmn:flowNodeRef>
             <bpmn:flowNodeRef>BoundaryEvent_approve_error</bpmn:flowNodeRef>
-            <bpmn:flowNodeRef>Event_ops_publish_end</bpmn:flowNodeRef>
           </bpmn:lane>
           <bpmn:lane id="Lane_021c8it" name="Order Rejected">
             <bpmn:flowNodeRef>Event_001t9ys</bpmn:flowNodeRef>
@@ -90,6 +86,7 @@
         <zeebe:taskDefinition type="approveOrderWorker" retries="3" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1n672u3</bpmn:incoming>
+      <bpmn:incoming>Flow_ops_approve_to_retry</bpmn:incoming>
       <bpmn:outgoing>Flow_approved_to_publish</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_approved_to_publish" sourceRef="Activity_order_approved" targetRef="Activity_publish_approved" />
@@ -116,7 +113,7 @@
           <zeebe:input source="info@1oannis.com" target="data.smtpAction.to" />
           <zeebe:input source="Cryptoflow - Order Executed" target="data.smtpAction.subject" />
           <zeebe:input source="PLAIN" target="data.smtpAction.contentType" />
-          <zeebe:input source="=&#34;Transaction: &#34; + transactionId + &#34; was executed successfully.\n\nSymbol:\t\t&#34; + symbol + &#34;\nAmount:\t\t&#34; + amount + &#34;\nPrice:\t\t\t&#34; + matchedPrice + &#34;\n\nThe order was placed at a target price of &#34; + price + &#34; and matched at &#34; +&#10;   matchedPrice + &#34;.&#34;" target="data.smtpAction.body" />
+          <zeebe:input source="=&#34;Transaction: &#34; + transactionId + &#34; was executed successfully.\n\nSymbol:\t\t\t&#34; + symbol + &#34;\nAmount:\t\t\t&#34; + amount + &#34;\nDisplay Currency:\t&#34; + displayCurrency + &#34;\nTarget Price:\t\t&#34; + price + &#34; &#34; + displayCurrency + &#34;\nMatched Price:\t\t&#34; + matchedPrice + &#34; USDT\n\nThe order was placed at a target price of &#34; + price + &#34; &#34; + displayCurrency + &#34; and matched at &#34; + matchedPrice + &#34; USDT.&#34;" target="data.smtpAction.body" />
         </zeebe:ioMapping>
         <zeebe:taskHeaders>
           <zeebe:header key="elementTemplateVersion" value="3" />
@@ -125,6 +122,7 @@
         </zeebe:taskHeaders>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_publish_to_email</bpmn:incoming>
+      <bpmn:incoming>Flow_ops_publish_to_email</bpmn:incoming>
       <bpmn:outgoing>Flow_1lf8liz</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:endEvent id="Event_06aqhe0">
@@ -149,7 +147,7 @@
           <zeebe:input source="info@1oannis.com" target="data.smtpAction.to" />
           <zeebe:input source="Cryptoflow - Order Rejected" target="data.smtpAction.subject" />
           <zeebe:input source="PLAIN" target="data.smtpAction.contentType" />
-          <zeebe:input source="=&#34;Order: &#34; + transactionId + &#34; was rejected.\n\nSymbol:\t\t&#34; + symbol + &#34;\nAmount:\t\t&#34; + amount + &#34;\nPrice:\t\t\t&#34; + price + &#34;\n\nThe target price of &#34; + price + &#34; was not matched within the given time frame.&#34;" target="data.smtpAction.body" />
+          <zeebe:input source="=&#34;Order: &#34; + transactionId + &#34; was rejected.\n\nSymbol:\t\t\t&#34; + symbol + &#34;\nAmount:\t\t\t&#34; + amount + &#34;\nDisplay Currency:\t&#34; + displayCurrency + &#34;\nTarget Price:\t\t&#34; + price + &#34; &#34; + displayCurrency + &#34;\n\nThe target price of &#34; + price + &#34; &#34; + displayCurrency + &#34; was not matched within the given time frame.&#34;" target="data.smtpAction.body" />
         </zeebe:ioMapping>
         <zeebe:taskHeaders>
           <zeebe:header key="elementTemplateVersion" value="3" />
@@ -175,7 +173,7 @@
         <zeebe:assignmentDefinition candidateGroups="ops" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_approve_error_to_ops</bpmn:incoming>
-      <bpmn:outgoing>Flow_ops_approve_to_end</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ops_approve_to_retry</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:userTask id="Activity_ops_publish_error" name="Ops: Investigate Publish Failure">
       <bpmn:extensionElements>
@@ -184,12 +182,12 @@
         <zeebe:assignmentDefinition candidateGroups="ops" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_publish_error_to_ops</bpmn:incoming>
-      <bpmn:outgoing>Flow_ops_publish_to_end</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ops_publish_to_email</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:sequenceFlow id="Flow_approve_error_to_ops" sourceRef="BoundaryEvent_approve_error" targetRef="Activity_ops_approve_error" />
-    <bpmn:sequenceFlow id="Flow_ops_approve_to_end" sourceRef="Activity_ops_approve_error" targetRef="Event_ops_approve_end" />
+    <bpmn:sequenceFlow id="Flow_ops_approve_to_retry" sourceRef="Activity_ops_approve_error" targetRef="Activity_order_approved" />
     <bpmn:sequenceFlow id="Flow_publish_error_to_ops" sourceRef="BoundaryEvent_publish_error" targetRef="Activity_ops_publish_error" />
-    <bpmn:sequenceFlow id="Flow_ops_publish_to_end" sourceRef="Activity_ops_publish_error" targetRef="Event_ops_publish_end" />
+    <bpmn:sequenceFlow id="Flow_ops_publish_to_email" sourceRef="Activity_ops_publish_error" targetRef="Activity_0p6fmth" />
     <bpmn:startEvent id="StartEvent_1">
       <bpmn:outgoing>Flow_0bcs3gj</bpmn:outgoing>
     </bpmn:startEvent>
@@ -224,12 +222,6 @@
     <bpmn:sequenceFlow id="Flow_place_error_to_form" sourceRef="BoundaryEvent_place_error" targetRef="Activity_0loy02c" />
     <bpmn:sequenceFlow id="Flow_0dbh88c" sourceRef="Activity_0loy02c" targetRef="Activity_106i7ff" />
     <bpmn:sequenceFlow id="Flow_0vauozo" sourceRef="Activity_106i7ff" targetRef="Gateway_1k5cqjb" />
-    <bpmn:endEvent id="Event_ops_approve_end" name="Approval Error Resolved">
-      <bpmn:incoming>Flow_ops_approve_to_end</bpmn:incoming>
-    </bpmn:endEvent>
-    <bpmn:endEvent id="Event_ops_publish_end" name="Publish Error Resolved">
-      <bpmn:incoming>Flow_ops_publish_to_end</bpmn:incoming>
-    </bpmn:endEvent>
   </bpmn:process>
   <bpmn:message id="Message_1geusci" name="priceMatchedEvent">
     <bpmn:extensionElements>
@@ -317,18 +309,6 @@
       <bpmndi:BPMNShape id="Gateway_0cjugzh_di" bpmnElement="Gateway_1k5cqjb">
         <dc:Bounds x="365" y="112" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_ops_approve_end_di" bpmnElement="Event_ops_approve_end">
-        <dc:Bounds x="612" y="632" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="595" y="675" width="72" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_ops_publish_end_di" bpmnElement="Event_ops_publish_end">
-        <dc:Bounds x="772" y="632" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="759" y="675" width="64" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BoundaryEvent_place_error_di" bpmnElement="BoundaryEvent_place_error">
         <dc:Bounds x="262" y="159" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -390,17 +370,20 @@
         <di:waypoint x="630" y="483" />
         <di:waypoint x="630" y="520" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ops_approve_to_end_di" bpmnElement="Flow_ops_approve_to_end">
-        <di:waypoint x="630" y="600" />
-        <di:waypoint x="630" y="632" />
+      <bpmndi:BPMNEdge id="Flow_ops_approve_to_retry_di" bpmnElement="Flow_ops_approve_to_retry">
+        <di:waypoint x="580" y="560" />
+        <di:waypoint x="550" y="560" />
+        <di:waypoint x="550" y="425" />
+        <di:waypoint x="580" y="425" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_publish_error_to_ops_di" bpmnElement="Flow_publish_error_to_ops">
         <di:waypoint x="790" y="483" />
         <di:waypoint x="790" y="520" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ops_publish_to_end_di" bpmnElement="Flow_ops_publish_to_end">
-        <di:waypoint x="790" y="600" />
-        <di:waypoint x="790" y="632" />
+      <bpmndi:BPMNEdge id="Flow_ops_publish_to_email_di" bpmnElement="Flow_ops_publish_to_email">
+        <di:waypoint x="840" y="560" />
+        <di:waypoint x="950" y="560" />
+        <di:waypoint x="950" y="465" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0bcs3gj_di" bpmnElement="Flow_0bcs3gj">
         <di:waypoint x="58" y="137" />

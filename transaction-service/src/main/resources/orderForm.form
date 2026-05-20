@@ -83,11 +83,11 @@
       }
     },
     {
-      "label": "Target Price (USDT)",
+      "label": "Target Price",
       "type": "number",
       "id": "price_field",
       "key": "price",
-      "description": "Order executes when the market price drops to or below this value",
+      "description": "In your display currency. The order is converted to USDT for matching and executes when the market price drops to or below this value.",
       "validate": {
         "required": true,
         "min": 0

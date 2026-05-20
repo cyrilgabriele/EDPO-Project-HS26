@@ -4,7 +4,10 @@
 
 ## Status
 
-Accepted
+Accepted. Partially superseded by [ADR-0035](0035_loop_ops_resolution_back_into_happy_path.md) — the
+human-escalation pattern (typed BPMN error → ops user task with mandatory resolution note) is retained;
+the post-task routing changes from "terminate the process" to "re-enter the happy path" (asymmetric:
+approve retries the failed step, publish skips forward to the email).
 
 ## Context
 
@@ -48,3 +51,5 @@ After the operator resolves the root cause, route the process back to the failed
 
 - ADR-0013 — error boundary context within the saga
 - ADR-0014 — outbox pattern (context for the publication failure case)
+- ADR-0035 — loops the ops resolution back into the happy path (resolves the deferred loop-back
+  alternative listed above)
