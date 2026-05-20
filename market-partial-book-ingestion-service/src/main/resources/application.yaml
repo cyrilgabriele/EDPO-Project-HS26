@@ -29,6 +29,13 @@ crypto:
     topic:
       scout-raw: crypto.scout.raw
       scout-raw-partitions: 3
+      # Per-topic retention for the raw partial-book-depth feed. Downstream
+      # consumers (market-order-scout-service) react in real time; old data
+      # has no replay value and would otherwise dominate broker disk.
+      scout-raw-retention-ms: ${SCOUT_RAW_RETENTION_MS:300000}        # 5 minutes
+      scout-raw-retention-bytes: ${SCOUT_RAW_RETENTION_BYTES:52428800} # 50 MB/partition
+      scout-raw-segment-bytes: ${SCOUT_RAW_SEGMENT_BYTES:5242880}      # 5 MB
+      scout-raw-segment-ms: ${SCOUT_RAW_SEGMENT_MS:60000}              # force roll every 1 min
 
 management:
   endpoints:

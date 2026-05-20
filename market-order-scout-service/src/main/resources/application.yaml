@@ -25,6 +25,12 @@ crypto:
       scout-matchable-asks: crypto.scout.matchable-asks
       scout-ask-opportunities: crypto.scout.ask-opportunities
       scout-window-summary: crypto.scout.window-summary
+      # Per-topic retention for scout-derived topics. Matching window is 35s
+      # (validity 30s + grace 5s) — keep 5 minutes for operator visibility.
+      scout-retention-ms: ${SCOUT_TOPIC_RETENTION_MS:300000}        # 5 minutes
+      scout-retention-bytes: ${SCOUT_TOPIC_RETENTION_BYTES:52428800} # 50 MB/partition
+      scout-segment-bytes: ${SCOUT_TOPIC_SEGMENT_BYTES:5242880}      # 5 MB
+      scout-segment-ms: ${SCOUT_TOPIC_SEGMENT_MS:60000}              # force roll every 1 min
 
 management:
   endpoints:
