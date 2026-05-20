@@ -66,6 +66,15 @@ f3e27b0 portfolio-service: use Confluent SpecificAvroSerde for portfolio.value.u
 
 7. **Task 7: smoke event was seeded directly into Kafka.** The repository has a quote/dashboard REST surface for `transaction-service`, but no place-order REST endpoint; order placement is Camunda-driven. To verify the scope-04 topology deterministically, the smoke test wrote one JSON `transaction.order.approved` event and one matching `crypto.price.raw` event directly to Kafka.
 
+## Post-scope-04 fix — transaction-service dashboard (`6f3de48`)
+
+Committed on 2026-05-20 while verifying the scope-04 IQ endpoint side-by-side with the existing `/value` endpoint. No architectural change.
+
+- `TransactionDashboardController` now injects `DisplayCurrencyCache` and includes `displayCurrency` in each confirmed-user entry of the `/api/dashboard` response.
+- `DisplayCurrencyCache` gains an `isReady()` flag (set on first `update()` call from the Kafka replay). `QuoteController` returns HTTP 503 with a human-readable message while the cache is cold, rather than silently falling back to USD.
+- `index.html`: hardcoded `value="alice"` removed from the quote user-ID input; confirmed-user cards are now clickable (`onclick="selectQuoteUser(...)"`) to populate the field; hover style added.
+- `TransactionDashboardControllerTests` updated to pass the new `DisplayCurrencyCache` argument.
+
 ## Remaining notes
 
 - `Instant.now()` remains in the aggregator lambdas (`PortfolioValuationStreamConfig`) — wall-clock, non-deterministic in tests. Acceptable for this non-windowed IQ-backed course topology; stricter stream-time semantics would require a transformer or injected clock.
