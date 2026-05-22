@@ -38,6 +38,9 @@
 #include "./content/chapters/architecture.typ"
 
 #pagebreak()
+#include "./content/chapters/stream-processing.typ"
+
+#pagebreak()
 #include "./content/chapters/adrs.typ"
 
 #pagebreak()

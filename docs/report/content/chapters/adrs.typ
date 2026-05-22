@@ -201,3 +201,153 @@ This chapter summarises the current architectural decision records (ADRs) refere
 *Decision:* `transaction-service` is the sole owner of the trading bounded context. It owns `placeOrder.bpmn`, the Camunda workers, transaction lifecycle state, pending-order matching, publication of approved-order events, and local persistence such as `transaction_record`, `outbox_events`, and the confirmed-user validation read model.
 
 *Consequences:* Trading invariants and behaviour are concentrated in one service boundary, while `portfolio-service` stays a downstream projection owner and `user-service` remains the identity owner. The trade-off is another deployable service with its own persistence model, but the responsibilities stay aligned with the domain.
+
+== ADR-0021: Binance Partial Book Depth Streams for Market Scout <adr-0021>
+
+*Status:* Accepted
+
+*Context:* Market Scout needs continuous futures order-book input to derive ask-side signals and demonstrate filtering, translation, Avro contracts, and windowed processing. Binance offers request-response depth calls, partial book streams, and diff book streams.
+
+*Decision:* The MVP uses Binance USD-M Futures Partial Book Depth Streams. They provide bounded top-N bid and ask levels with exchange timestamps, which fits the intended topology without requiring full local order-book reconstruction.
+
+*Consequences:* Market Scout can miss ask opportunities outside the configured top-N depth, but the stream-processing topology stays simple and bounded. A future full-order-book implementation would need snapshot reconciliation, diff streams, sequence validation, and gap recovery.
+
+== ADR-0022: Avro Contracts for Derived Market Scout Events <adr-0022>
+
+*Status:* Accepted
+
+*Context:* ADR-0003 standardised Kafka messages on JSON, but the Market Scout topology needs explicit contracts for translated and aggregated project-owned events while keeping raw exchange payloads replayable.
+
+*Decision:* `crypto.scout.raw` remains a JSON replay boundary. Derived Market Scout events use Avro contracts for `AskQuote`, `AskOpportunity`, and `ScoutWindowSummary`, generated locally with registryless serdes.
+
+*Consequences:* Raw ingestion remains inspectable and replayable, while derived topology outputs gain stronger contracts. The trade-off is a deliberate exception to the JSON default and no central schema compatibility enforcement until Schema Registry is introduced for broader cross-service derived contracts.
+
+== ADR-0023: Split Partial Book Ingestion from Market Order Scout Processing <adr-0023>
+
+*Status:* Accepted
+
+*Context:* The initial Market Scout service both consumed Binance partial book streams and ran the Kafka Streams topology over `crypto.scout.raw`. That made the MVP simple, but weakened the service-boundary story around Kafka.
+
+*Decision:* Split the flow into `market-partial-book-ingestion-service`, which owns Binance connectivity and raw JSON publication, and `market-order-scout-service`, which owns ask-side filtering, translation, thresholding, and windowed summaries.
+
+*Consequences:* The architecture now has a clearer exchange-facing ingestion boundary and a separate domain-specific processing boundary. The trade-off is an additional Spring Boot module, Docker Compose entry, build artifact, and test surface.
+
+== ADR-0024: New Kafka Streams Application ID for Market Order Scout <adr-0024>
+
+*Status:* Accepted
+
+*Context:* After ADR-0023, the Spring application name changed, which also changes the derived Kafka Streams `application.id`. Keeping the old ID would preserve offsets and state but retain coupling to the pre-split service identity.
+
+*Decision:* Accept `market-order-scout-service-topology` as the new Kafka Streams application ID and do not migrate the old local state or offsets. The service may reprocess `crypto.scout.raw` from `earliest` when no committed offsets exist.
+
+*Consequences:* The split gets a clean operational identity and uses the raw topic as the intended recovery path. The trade-off is possible duplicate derived records on reused local Kafka clusters, which is acceptable for the course project and local development context.
+
+== ADR-0025: Derived Market Features for Market Scout Events <adr-0025>
+
+*Status:* Accepted
+
+*Context:* Partial-depth raw events already contain enough ask-side information to derive useful liquidity features, but those features belong to project-owned derived contracts rather than the exchange-facing raw contract.
+
+*Decision:* Keep `crypto.scout.raw` unchanged and extend `AskQuote` and `AskOpportunity` with computed ask-side fields: `bestAskPrice`, `bestAskQuantity`, and per-level `askNotional`. `ScoutWindowSummary` remains unchanged.
+
+*Consequences:* Derived scout events become more useful for ask liquidity analysis while the raw Binance capture stays stable. The trade-off is repeated best-ask context on each flattened quote and required Avro/test updates.
+
+== ADR-0026: Matchable Ask as Cross-Service Ask Contract <adr-0026>
+
+*Status:* Accepted
+
+*Context:* `transaction-service` needs ask-side liquidity for matching, but should not depend on scout-local analysis events optimised for Market Scout concerns.
+
+*Decision:* Introduce `MatchableAsk` in `shared-events` as the cross-service Avro contract. `market-order-scout-service` publishes it to `crypto.scout.matchable-asks`, keyed by normalised symbol, with deterministic `askQuoteId`, price, quantity, event time, and source venue.
+
+*Consequences:* Trading can match against a narrow, stable contract while scout-local events remain free to evolve for analysis. The trade-off is one additional topic and Avro generation support in `shared-events`.
+
+== ADR-0027: Event-Time Bid/Ask Matching Window <adr-0027>
+
+*Status:* Accepted
+
+*Context:* The previous order-placement implementation approved orders from ticker prices cached in memory, mixing valuation prices with executable liquidity and losing pending state on restart.
+
+*Decision:* `transaction-service` owns a Kafka Streams topology over `transaction.buy-bids` and `crypto.scout.matchable-asks`, both keyed by symbol. A bid matches only if ask event time falls within the bid's 30-second validity window, price and quantity constraints pass, and price-time priority selects it.
+
+*Consequences:* Matching now uses executable ask liquidity and event-time semantics instead of local heap state. Losing bids remain pending within their validity window, and Camunda's rejection timer is set to `PT35S` to include a bounded late/fallback margin.
+
+== ADR-0028: Display Currency as User Identity Data <adr-0028>
+
+*Status:* Accepted
+
+*Context:* Users need portfolio values and buy-time quotes in a chosen currency, while user-service is the source of truth for user identity and preferences. Extending one-time confirmation events or calling user-service synchronously would blur event semantics or violate ECST.
+
+*Decision:* Add Display Currency as a per-user ISO-4217 code owned by `user-service`. It is persisted with default `USD`, updated through `PATCH /users/{id}/display-currency`, and published to the compacted `user.display-currency` topic as `UserDisplayCurrencyUpdated`.
+
+*Consequences:* Currency preference changes propagate through Kafka and remain display-only: holdings, orders, and snapshots stay USDT-denominated. The trade-off is a new compacted topic and the need to distinguish Display Currency from any future accounting unit of account.
+
+== ADR-0029: FX-Rate-Service as Reference Data Context <adr-0029>
+
+*Status:* Accepted
+
+*Context:* Display Currency conversion needs FX rates. These are slow-moving reference data from an HTTP provider, unlike Binance WebSocket price ingestion owned by `market-data-service`.
+
+*Decision:* Introduce `fx-rate-service` in a new Reference Data bounded context. It polls a public FX provider every five minutes, translates supported pairs, and publishes `FxRate` events to the compacted `reference.fx.rate` topic.
+
+*Consequences:* Market data remains focused on crypto price ingestion, while slow-moving reference data has a clear owner. The trade-off is an additional deployable and a dependency on a free public provider, mitigated by compacted last-known rates.
+
+== ADR-0030: Stream-Table Join for Price Localisation <adr-0030>
+
+*Status:* Accepted
+
+*Context:* USDT price streams can be converted on read or enriched stream-side. The project scope values demonstrating the stream-table join pattern in a customer-facing flow.
+
+*Decision:* Add a Kafka Streams enrichment app that joins `crypto.price.clean` with the `reference.fx.rate` GlobalKTable and emits `LocalizedPrice` to `crypto.price.localized`, keyed by symbol. Each event carries the source USDT price plus a map of supported display currencies.
+
+*Consequences:* Portfolio and Trading consume localised prices and select the requesting user's currency at read time. The trade-off is another streams app, topic, and failure surface, but the topology is simple and scales with the supported currency set.
+
+== ADR-0031: Venue-Native OHLC with Read-Time Conversion <adr-0031>
+
+*Status:* Accepted
+
+*Context:* OHLC bars aggregate USDT-denominated price ticks, but Display Currency raises whether bars should be emitted per currency, as a map-per-bar, or venue-native with conversion at read time. The scope also needs to demonstrate suppress-on-window-close semantics.
+
+*Decision:* Emit closed OHLC bars venue-native in USDT on `crypto.ohlc.1m`, `crypto.ohlc.5m`, and `crypto.ohlc.1h`. The topology uses event-time tumbling windows and `suppress(untilWindowCloses)`, while display conversion happens at API read time using current FX rates.
+
+*Consequences:* Each OHLC event represents a final closed bar, and topic count grows only with interval count. The trade-off is that historical-FX accuracy is out of scope; charts are rescaled by current FX rates rather than reconstructed with event-time FX.
+
+== ADR-0032: Avro and Confluent Schema Registry for Derived Events <adr-0032>
+
+*Status:* Accepted
+
+*Context:* New derived events such as `FxRate`, `LocalizedPrice`, `PortfolioValue`, `Ohlc`, and `UserDisplayCurrencyUpdated` cross multiple service ownership boundaries. Registryless Avro is too informal for that level of schema evolution.
+
+*Decision:* Adopt Avro with Confluent Schema Registry for those derived event types and add `schema-registry` to Docker Compose. Existing JSON topics remain JSON, and existing registryless Market Scout Avro topics are not migrated as part of this decision.
+
+*Consequences:* New cross-service derived contracts gain central schema compatibility checks and generated type safety. The trade-off is one additional infrastructure dependency and build-time Avro code generation in services that use the registered contracts.
+
+== ADR-0033: Coin Metadata Enrichment via GlobalKTable <adr-0033>
+
+*Status:* Accepted
+
+*Context:* OHLC consumers need display metadata such as asset names, logos, market-cap rank, base asset, and quote asset. Fetching that metadata synchronously from dashboard read paths would undermine the read-time cache pattern.
+
+*Decision:* Add `coin-metadata-service` in the Reference Data context. It polls CoinGecko, publishes `CoinMetadata` to the compacted `reference.crypto.metadata` topic, and the OHLC topology joins closed bars against a `GlobalKTable` before publishing enriched `Ohlc` records.
+
+*Consequences:* Dashboard consumers receive bars that already carry rendering metadata, and the OHLC scope demonstrates stream-table joins alongside windowing and suppress. The trade-off is schema growth on `Ohlc`, a static symbol-to-CoinGecko mapping, and dependence on a rate-limited public provider.
+
+== ADR-0034: Portfolio Valuation Streams App inside Portfolio-Service <adr-0034>
+
+*Status:* Accepted
+
+*Context:* Portfolio valuation must continuously compute per-user value and expose it through interactive queries while demonstrating table-table join, multiphase repartitioning, and local state. The open questions were service placement, holdings source, and price source.
+
+*Decision:* Host the valuation topology inside `portfolio-service` with application ID `portfolio-service-valuation`. It replays `transaction.order.approved` into a holdings KTable, uses `crypto.price.raw` as the USDT price source, keeps `at_least_once` processing, and exposes `GET /portfolios/{userId}/streams-value` beside the existing Postgres-backed endpoint.
+
+*Consequences:* Scope 04 patterns are demonstrated in one user-facing flow, and rebuilding from the event log is explicit. The trade-off is that holdings exist as both a Postgres projection and a Streams state-store projection, plus new Kafka Streams and RocksDB runtime requirements in `portfolio-service`.
+
+== ADR-0035: Loop Ops Resolution Back into the `placeOrder` Happy Path <adr-0035>
+
+*Status:* Accepted; partially supersedes ADR-0018.
+
+*Context:* ADR-0018 routed deterministic approval and publication failures to ops tasks that terminated the process after acknowledgement. This surfaced failures but prevented the user-facing closure email and, in the publish-failure case, left the process incomplete even though Kafka publication had already happened.
+
+*Decision:* After ops completion, the process re-enters the happy path asymmetrically. Approval errors loop back to the approve step so the atomic approve-with-outbox write can retry; publish errors skip forward to the executed-email step because the Kafka event has already been published.
+
+*Consequences:* Orders can still complete through the happy-path end event after human intervention, and premature ops closure self-heals by surfacing the same task again. The trade-off is a more nuanced BPMN model and a permanent audit anomaly if an outbox row was missing after Kafka publication.
