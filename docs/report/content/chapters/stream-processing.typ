@@ -16,7 +16,7 @@ CryptoFlow uses that model in three places:
 
 / Materialized views: Some topologies persist local state stores. These stores are not side databases owned by another service; they are rebuildable views derived from Kafka input topics and their changelogs. Portfolio value and Market Scout dashboard state are exposed through interactive queries.
 
-The stream-table duality is the common mental model. A `KStream` represents changes over time. A `KTable` represents the latest state after those changes have been applied. CryptoFlow uses both forms: prices become a latest-price table, holdings become a holdings table, FX and metadata topics are compacted reference tables, and windowed OHLC stores hold finite event-time aggregates.
+The stream-table duality is the common mental model. A `KStream` represents changes over time. A `KTable` represents the latest state after those changes have been applied. CryptoFlow uses both forms: prices become a latest-price table, holdings become a holdings table, FX and metadata topics are compacted reference tables, and windowed OHLC stores hold finite event-time aggregates. Compacted topics are deliberately used as distributed caches for slow-moving facts such as FX rates, coin metadata, user display currency, and latest portfolio values.
 
 == Stateless Stream Processing
 
@@ -25,7 +25,7 @@ Stateless processing handles each event independently. This covers the single-ev
 The `fx-rate-service` is the reference-data example. It polls a public FX provider on a five-minute schedule, validates the response, translates one provider response into one `FxRate` per currency pair, and publishes those records to the compacted `reference.fx.rate` topic. The compacted topic is the cache. Consumers materialize it locally and never call the FX provider on the event path, which is the Reference Data decision in @adr-0029.
 
 #figure(
-  image("figures/fx-rate-ingestion.svg", width: 90%),
+  image("figures/fx-rate-ingestion.svg", width: 70%),
   caption: [FX rate ingestion as single-event processing: scheduled fetch, filter, translator, compacted reference topic],
 ) <fig:stream-fx-ingestion>
 
@@ -74,6 +74,18 @@ transaction.buy-bids                crypto.scout.matchable-asks
 
 The topology keeps pending bids by symbol, remembers matched transaction ids, and remembers allocated ask quote ids. This makes matching restartable and prevents duplicate match decisions. A `MatchableAsk` can be allocated to at most one still-pending bid, and a transaction that has already matched is ignored on replay.
 
+=== Place-order Matching Extension
+
+The extension changes the matching source without turning the workflow into a stream-processing application. `placeOrder.bpmn` still creates and owns the user-visible order process, but the market decision is delegated to a Kafka Streams topology inside `transaction-service`.
+
+When the user places an order, the place-order worker validates the user locally, persists the pending transaction, and publishes a `BuyBid` record to `transaction.buy-bids`. Independently, the market-scout pipeline converts Binance partial-book snapshots into `MatchableAsk` records on `crypto.scout.matchable-asks`. Both streams are normalized to the same symbol key before they enter the matcher.
+
+The matcher keeps three persistent stores: pending bids grouped by symbol, transaction ids that already matched, and ask quote ids that have already been allocated. This state is what makes the extension more robust than the earlier in-memory price check. A restart can rebuild the matching state from Kafka inputs, and replay does not approve the same transaction twice or allocate one ask to multiple bids.
+
+The business timing is event-time based. A bid is valid for 30 seconds from its `createdAt` timestamp, with a five-second grace period aligned with the Camunda rejection timer. A `MatchableAsk` is eligible only if its market event time falls into that interval, the ask price is at or below the bid price, and the available quantity is sufficient. If several bids compete for the same ask, deterministic price-time priority chooses the winner: highest bid price first, then earliest bid creation time, then `transactionId`.
+
+When a match is found, the topology emits `transaction.order-matched` keyed by `transactionId`. Camunda correlates that event to the waiting process instance, after which the existing approval path continues unchanged: `approveOrderWorker` writes the approved state and outbox row, `publishOrderApprovedWorker` publishes `transaction.order.approved`, and `portfolio-service` updates holdings asynchronously. This keeps Kafka Streams responsible for market matching and Camunda responsible for the order lifecycle.
+
 The portfolio valuation topology uses state stores at a higher level of abstraction (@adr-0034). It consumes approved orders and prices, materializes both as tables, computes position values, then groups positions into a user-level aggregate:
 
 ```text
@@ -98,7 +110,7 @@ Lecture 10 distinguishes event time, ingestion time, and processing time. Crypto
 
 The Market Scout summary is a simple tumbling-window aggregation. After `AskOpportunity` records are produced, the topology groups by symbol, applies a configured window size, and aggregates the opportunity count and minimum ask price into `ScoutWindowSummary`. It also materializes a dashboard stats store so the Scout dashboard can read the latest summary state.
 
-The OHLC topology is the more complete windowing example. In the final target architecture, @adr-0031 and the scope document name `crypto.price.clean` as the canonical input. The current implementation reads `crypto.price.raw` because the scope-02 price-sanity stream has not shipped yet. This is an implementation-stage deviation, not the final doctrine; the code documents the source swap as a one-line configuration change.
+The OHLC topology is the more complete windowing example. In the target architecture, @adr-0031 and the scope document name `crypto.price.clean` as the canonical input. The current implementation reads `crypto.price.raw` because the scope-02 price-sanity stream has not shipped yet. This is an implementation-stage deviation, not the final doctrine; the code documents the source swap as a one-line configuration change.
 
 ```text
 crypto.price.raw
@@ -138,7 +150,7 @@ Interactive queries are used where the materialized result is directly useful to
     [*Pattern*], [*Implementation*], [*Resulting topic or store*],
     [Single-event processing], [FX filter/translator, metadata polling, ask filtering and translation], [`reference.fx.rate`, `reference.crypto.metadata`, `crypto.scout.ask-quotes`],
     [Processing with local state], [Transaction matching stores, OHLC window stores, portfolio stores], [`pending-buy-bids-by-symbol`, `ohlc-*` stores, `portfolio-value-store`],
-    [Stream-table join], [Closed OHLC bars enriched with coin metadata (@adr-0033); FX/localized-price design in @adr-0030], [`crypto.ohlc.1m/5m/1h`],
+    [Stream-table join], [Closed OHLC bars enriched with coin metadata (@adr-0033); ADR-0030 records the planned FX/localized-price join], [`crypto.ohlc.1m/5m/1h`],
     [Table-table join], [Portfolio holdings joined with latest prices by symbol], [`position-value` KTable],
     [Multiphase repartitioning], [Portfolio positions re-keyed from `userId|symbol` to `userId`], [`portfolio-value-store`],
     [Windowing], [Market Scout summaries, OHLC bars, bid validity interval], [`crypto.scout.window-summary`, `crypto.ohlc.*`, `transaction.order-matched`],
@@ -155,7 +167,7 @@ The stream extension uses three serialization strategies because the topics have
 
 / Registryless Avro for scout-owned derived topics: `AskQuote`, `AskOpportunity`, and `ScoutWindowSummary` are local to `market-order-scout-service` (@adr-0022). They use Avro schemas but do not need Schema Registry because no independent bounded context depends on them as stable contracts.
 
-/ Schema Registry Avro for cross-service derived contracts: `FxRate`, `CoinMetadata`, `Ohlc`, `PortfolioValue`, `UserDisplayCurrencyUpdated`, and the shared `MatchableAsk` contract are schema-managed or shared because they cross service boundaries or are consumed by independently deployable components. @adr-0032 records the general decision for registry-backed Avro derived events, while @adr-0026 records the narrower `MatchableAsk` contract.
+/ Schema Registry Avro for cross-service derived contracts: `FxRate`, `CoinMetadata`, `Ohlc`, `PortfolioValue`, and `UserDisplayCurrencyUpdated` are registry-backed because they cross service boundaries or are consumed by independently deployable components. The shared `MatchableAsk` contract follows the same generated-contract discipline and is documented separately in @adr-0026.
 
 Reprocessing follows the same rule across topologies: input topics are the source of truth for derived state. A fresh Kafka Streams `application.id`, or an offset reset for the existing app id during development, lets a topology rebuild its local stores and derived outputs from retained input records. This is useful for OHLC bars, portfolio values, and Scout summaries. The practical limit is topic retention: raw scout and market topics are intentionally short-lived in the development broker to protect disk space, while compacted reference topics retain latest state by key.
 

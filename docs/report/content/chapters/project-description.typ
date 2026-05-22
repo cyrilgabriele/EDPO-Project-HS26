@@ -2,9 +2,9 @@
 
 = Project Description <project-description>
 
-CryptoFlow is a crypto portfolio simulation platform that demonstrates event-driven and process-oriented architecture patterns in a distributed microservice environment. The system allows users to register, manage cryptocurrency portfolios, and place simulated trading orders. This, all coordinated through asynchronous event streams and orchestrated business processes.
+CryptoFlow is a crypto portfolio simulation platform that demonstrates event-driven, stream-processing, and process-oriented architecture patterns in a distributed microservice environment. The system allows users to register, manage cryptocurrency portfolios, observe live market data, and place simulated trading orders, all coordinated through asynchronous event streams, materialized stream state, and orchestrated business processes.
 
-The Project release for this version of the reportcan be found on GitHub: 
+The project release for this version of the report can be found on GitHub:
 
 https://github.com/cyrilgabriele/EDPO-Project-FS26/releases/tag/v1.0.0
 
@@ -14,7 +14,9 @@ The central goal of this project was to implement the concepts covered in the ED
 
 === Bounded Contexts
 
-@fig:context-map shows the domain as a DDD context map. Five bounded contexts form the platform, each owned by a single service.
+@fig:context-map shows the domain as a DDD context map. The final platform is best understood as six bounded contexts: Market Data, Reference Data, Portfolio, Trading, User, and Onboarding.
+
+#text(red)[TODO Ioannis: Replace Figure 1 with the most recent context/topology image before hand-in.]
 
 #figure(
   image("figures/context-map.jpeg", width: 62%),
@@ -22,12 +24,13 @@ The central goal of this project was to implement the concepts covered in the ED
 ) <fig:context-map>
 
 / Market Data: Upstream supplier for live prices. Ingests external Binance feeds through an Anti-Corruption Layer and publishes price events that flow downstream to Portfolio and Trading.
+/ Reference Data: Slow-moving externally sourced facts for event enrichment. Publishes FX rates and coin metadata as compacted reference topics so downstream services can enrich local stream state without synchronous provider calls.
 / Portfolio: Downstream consumer of both price events and approved-order events. Owns holdings, valuation logic, and an in-memory price cache. Participates in the onboarding saga as a Camunda job worker.
 / Trading: Downstream consumer of price events and user-confirmation events. Owns order lifecycle, the transactional outbox, and a replicated read-model for user validation. Deploys the `placeOrder` BPMN process.
-/ User Identity: Upstream supplier of confirmed-user events consumed by Trading. Owns user accounts, confirmation links, and identity state. Participates in the onboarding saga as a Camunda job worker.
+/ User: Upstream supplier of confirmed-user events consumed by Trading. Owns user accounts, confirmation links, and identity state. Participates in the onboarding saga as a Camunda job worker.
 / Onboarding: Dedicated saga orchestrator with no persistent data of its own. Coordinates user and portfolio creation across bounded contexts via Camunda 8, keeping orchestration separate from domain ownership.
 
-User Identity and Portfolio are connected through a Partnership relationship: bidirectional compensation events allow each side to roll back the other during onboarding failures. All contexts share a common event schema through the `shared-events` Shared Kernel module, ensuring compile-time consistency.
+User and Portfolio are connected through a Partnership relationship: bidirectional compensation events allow each side to roll back the other during onboarding failures. All contexts share a common event schema through the `shared-events` Shared Kernel module, ensuring compile-time consistency.
 
 === Architecture Characteristics <architecture-characteristics>
 
@@ -55,10 +58,10 @@ The bounded contexts and flows described above impose a set of quality attribute
 
 === Implemented Concepts
 
-The following EDPO lecture concepts are implemented in CryptoFlow:
+The following EDPO lecture concepts are implemented in CryptoFlow. They are grouped by the two main parts of the course so the report distinguishes process-oriented integration work from event-driven and stream-processing work.
 
-- *Event-driven communication* through Apache Kafka as the backbone for inter-service collaboration.
-- *Event-Carried State Transfer (ECST)* for price replication, portfolio updates, compensation events, and replicated user-validation data.
+==== Process-Oriented Concepts
+
 - *Process orchestration* with Camunda 8 / Zeebe, using BPMN workflows to coordinate long-running processes.
 - *Service autonomy through bounded contexts* with clear ownership, a database-per-service model, and a dedicated onboarding-service to avoid a process monolith.
 - *Parallel Saga* for the onboarding workflow.
@@ -69,6 +72,17 @@ The following EDPO lecture concepts are implemented in CryptoFlow:
 - *Replicated read-model* for local validation without synchronous cross-service calls.
 - *Human intervention as a stateful resilience pattern* for deterministic workflow failures.
 
+==== Event-Driven and Stream-Processing Concepts
+
+- *Event-driven communication* through Apache Kafka as the backbone for inter-service collaboration.
+- *Event-Carried State Transfer (ECST)* for price replication, portfolio updates, compensation events, and replicated user-validation data.
+- *Stateless stream processing* for FX-rate ingestion, coin metadata ingestion, and Market Scout ask filtering/translation.
+- *Stateful Kafka Streams processing* for bid/ask matching, OHLC windows, Market Scout summaries, and portfolio valuation.
+- *Windowing, event-time timestamp extraction, grace periods, and suppression* for closed OHLC bars and market-scout summaries.
+- *Joins and repartitioning* through OHLC metadata enrichment, portfolio valuation table-table joins, and portfolio value aggregation by user.
+- *Interactive queries* for portfolio value and Market Scout dashboard state.
+- *Schema-managed derived events* with Avro and Confluent Schema Registry for cross-service stream contracts.
+
 == System Overview
 
 @fig:deployment-overview gives a high-level deployment view of CryptoFlow.
@@ -78,11 +92,11 @@ The following EDPO lecture concepts are implemented in CryptoFlow:
   caption: [High-level deployment overview showing the Docker Compose runtime, Spring Boot services, infrastructure, and external systems],
 ) <fig:deployment-overview>
 
-Inside the Docker Compose boundary, five Spring Boot microservices communicate through Apache Kafka and persist state in service-owned PostgreSQL databases. Market Data and Onboarding are stateless; Portfolio, Transaction, and User each own a dedicated database. Kafka UI and pgAdmin provide developer-facing observability.
+Inside the Docker Compose boundary, the Spring Boot services communicate through Apache Kafka and persist state in service-owned PostgreSQL databases where needed. Market and reference-data ingestion services are stateless; Portfolio, Transaction, and User each own a dedicated database. Kafka Streams applications materialize local RocksDB-backed state stores for matching, OHLC, Scout dashboard statistics, and portfolio valuation. Kafka UI and pgAdmin provide developer-facing observability.
 
 Outside the local runtime, three external systems integrate with the platform. Binance delivers real-time price feeds over WebSocket. Camunda 8 hosts the BPMN process engine, with services connecting as stateless gRPC workers. End users interact through REST endpoints exposed by Portfolio and Transaction, and through Camunda Tasklist for human-intervention tasks.
 
-The two main end-to-end flows that define the platform from the outside are the onboarding flow, which creates a confirmed user together with a matching portfolio, and the trading flow, which matches pending orders against live market prices before propagating approved trades to the portfolio context. @architecture provides the detailed service-by-service architecture, event topology, and BPMN interaction model.
+The two main end-to-end flows that define the platform from the outside are the onboarding flow, which creates a confirmed user together with a matching portfolio, and the trading flow, which matches pending buy bids against ask liquidity derived from live order-book snapshots before propagating approved trades to the portfolio context. @architecture provides the service topology, event topology, and BPMN interaction model.
 
 == Technology Stack
 
@@ -97,8 +111,10 @@ The two main end-to-end flows that define the platform from the outside are the 
     [Apache Kafka (Confluent 7.6, KRaft)], [@adr-0001], [Sole inter-service communication channel for domain events. KRaft mode removes the Zookeeper dependency. Topics are explicitly declared via Spring `@Bean` definitions.],
     [Camunda 8 / Zeebe (SaaS)], [@adr-0008], [Orchestrates multi-step BPMN processes. Services act as stateless gRPC job workers. SaaS deployment provides managed scalability and Operate dashboard.],
     [PostgreSQL 16 + Flyway], [@adr-0007, @adr-0019], [Stores persistent data for the Portfolio, User, and Transaction bounded contexts with one database per service. Flyway manages schema migrations; Hibernate runs in `validate` mode only.],
-    [Docker Compose], [--], [Provisions the full local infrastructure stack (Kafka, PostgreSQL, Kafka UI, pgAdmin) and all five application services. Enables reproducible single-command startup.],
+    [Docker Compose], [--], [Provisions the full local infrastructure stack (Kafka, PostgreSQL, Kafka UI, pgAdmin) and the application services. Enables reproducible single-command startup.],
     [Binance WebSocket API], [@adr-0006], [Provides real-time cryptocurrency price feeds at no cost and without authentication. Keeps the market-data path fully event-driven end-to-end.],
+    [Kafka Streams], [@adr-0027, @adr-0031, @adr-0034], [Runs continuously active stream-processing topologies for bid/ask matching, OHLC aggregation, Market Scout summaries, and portfolio valuation state stores.],
+    [Confluent Schema Registry + Avro], [@adr-0032], [Provides schema-managed contracts for new cross-service derived events, while raw replay topics stay JSON.],
     [Jackson JSON], [@adr-0003], [Standardised serialization for all Kafka messages. Readable payloads, no schema registry required. Trade-off is larger payloads and no broker-side schema validation.],
     [`shared-events` module], [@adr-0005], [Shared Maven module defining Kafka event contracts. Ensures compile-time consistency across all producing and consuming services.],
   ),

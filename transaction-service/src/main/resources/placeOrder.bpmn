@@ -56,7 +56,7 @@
     </bpmn:laneSet>
     <bpmn:sequenceFlow id="Flow_1n8ka4m" sourceRef="Gateway_1k5cqjb" targetRef="Event_1auq9lb" />
     <bpmn:sequenceFlow id="Flow_0ir4p4m" sourceRef="Gateway_1k5cqjb" targetRef="Event_001t9ys" />
-    <bpmn:intermediateCatchEvent id="Event_001t9ys" name="Order Validity Expired (1min)">
+    <bpmn:intermediateCatchEvent id="Event_001t9ys" name="Order Validity Expired (35s)">
       <bpmn:incoming>Flow_0ir4p4m</bpmn:incoming>
       <bpmn:outgoing>Flow_09kn552</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerEventDefinition_0acrukk">
@@ -73,7 +73,7 @@
     <bpmn:sequenceFlow id="Flow_09kn552" sourceRef="Event_001t9ys" targetRef="Activity_order_rejected" />
     <bpmn:sequenceFlow id="Flow_rejected_to_email" sourceRef="Activity_order_rejected" targetRef="Activity_0t8bldn" />
     <bpmn:sequenceFlow id="Flow_1qw0qb4" sourceRef="Activity_0t8bldn" targetRef="Event_01q9bts" />
-    <bpmn:intermediateCatchEvent id="Event_1auq9lb" name="Price Matched">
+    <bpmn:intermediateCatchEvent id="Event_1auq9lb" name="Order Matched">
       <bpmn:incoming>Flow_1n8ka4m</bpmn:incoming>
       <bpmn:outgoing>Flow_1n672u3</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MessageEventDefinition_19ag533" messageRef="Message_1geusci" />

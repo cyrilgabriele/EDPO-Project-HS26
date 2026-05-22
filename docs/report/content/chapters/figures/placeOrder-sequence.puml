@@ -20,23 +20,30 @@ actor "End user" as User
 participant "Camunda\nplaceOrder" as C #EDE7F6
 participant "transaction-service" as T #E3F2FD
 queue "Kafka" as K #FFF3E0
+participant "market-order-scout-service" as M #FFF8E1
 participant "portfolio-service" as P #E8F5E9
 
 User -> C : submit order form
 C -> T : run placeOrderWorker
 T -> T : validate user against\nlocal confirmed-user read model
-T -> T : persist pending order\nand wait for price match
+T -> T : persist pending transaction
+T -> K : publish transaction.buy-bids
 
-K --> T : deliver price event
+M -> K : publish crypto.scout.matchable-asks
+K --> T : deliver BuyBid and MatchableAsk
+T -> T : match bid/ask by symbol\n30s validity + 5s grace
 
-alt Price matches before timeout
-  T -> C : correlate priceMatchedEvent
+alt Order match before PT35S timeout
+  T -> K : publish transaction.order-matched
+  K --> T : consume order-matched event
+  T -> C : correlate priceMatchedEvent\nby transactionId
   C -> T : run approveOrderWorker\n+ publishOrderApprovedWorker
   T -> K : publish transaction.order.approved
   K --> P : consume approved order
   P -> P : upsert holding
   C --> User : send execution email
-else No match before timeout
+else No match before PT35S timeout
+  C -> T : run rejectOrderWorker
   C --> User : send rejection email
 end
 

@@ -1,172 +1,299 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1220" viewBox="0 0 1680 1220" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2320" viewBox="0 0 1800 2320" role="img" aria-labelledby="title desc">
   <title id="title">Kafka topic topology</title>
-  <desc id="desc">Rendered overview of services, Kafka topics, and consumer relationships in the current CryptoFlow implementation.</desc>
+  <desc id="desc">Current CryptoFlow Kafka topics grouped by producer, topic, and consumer without crossing edges.</desc>
 
   <defs>
     <style>
+      text {
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      .background {
+        fill: #fcfcfb;
+      }
+      .header {
+        fill: #111827;
+        font-size: 30px;
+        font-weight: 700;
+      }
+      .column-title {
+        fill: #334155;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .section-title {
+        fill: #111827;
+        font-size: 23px;
+        font-weight: 700;
+      }
+      .section-rule {
+        stroke: #cbd5e1;
+        stroke-width: 2;
+      }
       .service {
         fill: #f3f4f6;
         stroke: #6b7280;
         stroke-width: 2;
       }
+      .consumer {
+        fill: #f8fafc;
+        stroke: #94a3b8;
+        stroke-width: 2;
+      }
+      .topic {
+        stroke-width: 3;
+      }
       .service-text {
         fill: #111827;
-        font-family: Arial, Helvetica, sans-serif;
-        font-size: 26px;
+        font-size: 18px;
         font-weight: 700;
       }
       .topic-text {
         fill: #111827;
-        font-family: Arial, Helvetica, sans-serif;
-        font-size: 23px;
+        font-size: 19px;
         font-weight: 700;
       }
-      .label {
-        fill: #374151;
-        font-family: Arial, Helvetica, sans-serif;
-        font-size: 18px;
-      }
-      .small-label {
-        fill: #374151;
-        font-family: Arial, Helvetica, sans-serif;
-        font-size: 16px;
-      }
-      .topic-price {
-        fill: #e8f5e9;
-        stroke: #2e7d32;
-        stroke-width: 3;
-      }
-      .topic-order {
-        fill: #e3f2fd;
-        stroke: #1565c0;
-        stroke-width: 3;
-      }
-      .topic-confirmed {
-        fill: #fff8e1;
-        stroke: #ef6c00;
-        stroke-width: 3;
-      }
-      .topic-portfolio-comp {
-        fill: #f3e5f5;
-        stroke: #6a1b9a;
-        stroke-width: 3;
-      }
-      .topic-user-comp {
-        fill: #ede7f6;
-        stroke: #4527a0;
-        stroke-width: 3;
-      }
-      .topic-dlt {
-        fill: #ffebee;
-        stroke: #c62828;
-        stroke-width: 3;
+      .small-text {
+        fill: #475569;
+        font-size: 15px;
       }
       .edge {
-        fill: none;
-        stroke: #334155;
-        stroke-width: 3;
+        stroke: #475569;
+        stroke-width: 2.2;
         stroke-linecap: round;
-        stroke-linejoin: round;
+      }
+      .price {
+        fill: #e8f5e9;
+        stroke: #2e7d32;
+      }
+      .dlt {
+        fill: #ffebee;
+        stroke: #c62828;
+      }
+      .order {
+        fill: #e3f2fd;
+        stroke: #1565c0;
+      }
+      .scout {
+        fill: #fff8e1;
+        stroke: #ef6c00;
+      }
+      .reference {
+        fill: #e0f2fe;
+        stroke: #0369a1;
+      }
+      .user {
+        fill: #f3e5f5;
+        stroke: #6a1b9a;
+      }
+      .portfolio {
+        fill: #ede7f6;
+        stroke: #4527a0;
       }
     </style>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#334155"/>
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
     </marker>
   </defs>
 
-  <rect x="0" y="0" width="1680" height="1220" fill="#fcfcfb"/>
+  <rect class="background" x="0" y="0" width="1800" height="2320"/>
 
-  <!-- Row 1 -->
-  <rect class="service" x="60" y="56" rx="16" ry="16" width="320" height="72"/>
-  <text class="service-text" x="220" y="101" text-anchor="middle">market-data-service</text>
+  <text class="header" x="70" y="62">Kafka Topic Topology</text>
+  <text class="small-text" x="70" y="92">Externally declared application topics. Kafka Streams internal repartition and changelog topics are omitted.</text>
 
-  <rect class="topic-price" x="540" y="46" rx="18" ry="18" width="420" height="92"/>
-  <text class="topic-text" x="750" y="102" text-anchor="middle">crypto.price.raw</text>
+  <text class="column-title" x="190" y="132" text-anchor="middle">Producer</text>
+  <text class="column-title" x="800" y="132" text-anchor="middle">Topic</text>
+  <text class="column-title" x="1420" y="132" text-anchor="middle">Consumer / Use</text>
 
-  <rect class="service" x="1320" y="32" rx="16" ry="16" width="310" height="72"/>
-  <text class="service-text" x="1475" y="77" text-anchor="middle">transaction-service</text>
+  <text class="section-title" x="70" y="180">Market Data and Reference Data</text>
+  <line class="section-rule" x1="70" y1="196" x2="1730" y2="196"/>
 
-  <rect class="service" x="1320" y="142" rx="16" ry="16" width="310" height="72"/>
-  <text class="service-text" x="1475" y="187" text-anchor="middle">portfolio-service</text>
+  <rect class="service" x="70" y="222" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="258" text-anchor="middle">market-data-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="251" x2="545" y2="251"/>
+  <rect class="topic price" x="545" y="216" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="258" text-anchor="middle">crypto.price.raw</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="251" x2="1175" y2="251"/>
+  <rect class="consumer" x="1175" y="210" width="550" height="82" rx="10"/>
+  <text class="service-text" x="1450" y="241" text-anchor="middle">transaction-service, portfolio-service</text>
+  <text class="small-text" x="1450" y="265" text-anchor="middle">plus market-data-service OHLC topology</text>
 
-  <rect class="topic-dlt" x="940" y="232" rx="18" ry="18" width="460" height="92"/>
-  <text class="topic-text" x="1170" y="288" text-anchor="middle">crypto.price.raw.DLT</text>
+  <rect class="service" x="70" y="318" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="354" text-anchor="middle">price consumers</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="347" x2="545" y2="347"/>
+  <rect class="topic dlt" x="545" y="312" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="354" text-anchor="middle">crypto.price.raw.DLT</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="347" x2="1175" y2="347"/>
+  <rect class="consumer" x="1175" y="318" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="354" text-anchor="middle">Kafka UI / operator inspection</text>
 
-  <path class="edge" marker-end="url(#arrow)" d="M 380 92 L 540 92"/>
-  <text class="label" x="460" y="74" text-anchor="middle">publishes</text>
+  <rect class="service" x="70" y="414" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="450" text-anchor="middle">market-data-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="443" x2="545" y2="443"/>
+  <rect class="topic order" x="545" y="408" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="450" text-anchor="middle">crypto.ohlc.1m</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="443" x2="1175" y2="443"/>
+  <rect class="consumer" x="1175" y="414" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="450" text-anchor="middle">market-data dashboard / retained history</text>
 
-  <path class="edge" marker-end="url(#arrow)" d="M 960 80 C 1080 78, 1200 70, 1320 70"/>
-  <text class="label" x="1140" y="50" text-anchor="middle">consumes</text>
+  <rect class="service" x="70" y="510" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="546" text-anchor="middle">market-data-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="539" x2="545" y2="539"/>
+  <rect class="topic order" x="545" y="504" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="546" text-anchor="middle">crypto.ohlc.5m</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="539" x2="1175" y2="539"/>
+  <rect class="consumer" x="1175" y="510" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="546" text-anchor="middle">market-data dashboard / retained history</text>
 
-  <path class="edge" marker-end="url(#arrow)" d="M 960 112 C 1080 124, 1200 178, 1320 178"/>
-  <text class="label" x="1145" y="150" text-anchor="middle">consumes</text>
+  <rect class="service" x="70" y="606" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="642" text-anchor="middle">market-data-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="635" x2="545" y2="635"/>
+  <rect class="topic order" x="545" y="600" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="642" text-anchor="middle">crypto.ohlc.1h</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="635" x2="1175" y2="635"/>
+  <rect class="consumer" x="1175" y="606" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="642" text-anchor="middle">market-data dashboard / retained history</text>
 
-  <path class="edge" marker-end="url(#arrow)" d="M 770 138 C 830 200, 875 242, 940 278"/>
-  <text class="small-label" x="858" y="208" text-anchor="middle">failed records</text>
-  <text class="small-label" x="858" y="228" text-anchor="middle">after retries</text>
+  <rect class="service" x="70" y="702" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="738" text-anchor="middle">coin-metadata-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="731" x2="545" y2="731"/>
+  <rect class="topic reference" x="545" y="696" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="738" text-anchor="middle">reference.crypto.metadata</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="731" x2="1175" y2="731"/>
+  <rect class="consumer" x="1175" y="702" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="738" text-anchor="middle">market-data-service OHLC enrichment</text>
 
-  <!-- Row 2 -->
-  <rect class="service" x="60" y="398" rx="16" ry="16" width="300" height="72"/>
-  <text class="service-text" x="200" y="443" text-anchor="middle">transaction-service</text>
+  <rect class="service" x="70" y="798" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="834" text-anchor="middle">fx-rate-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="827" x2="545" y2="827"/>
+  <rect class="topic reference" x="545" y="792" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="834" text-anchor="middle">reference.fx.rate</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="827" x2="1175" y2="827"/>
+  <rect class="consumer" x="1175" y="792" width="550" height="70" rx="10"/>
+  <text class="service-text" x="1450" y="821" text-anchor="middle">portfolio-service, transaction-service</text>
+  <text class="small-text" x="1450" y="845" text-anchor="middle">display-currency conversion read models</text>
 
-  <rect class="topic-order" x="540" y="390" rx="18" ry="18" width="420" height="86"/>
-  <text class="topic-text" x="750" y="443" text-anchor="middle">transaction.order.approved</text>
+  <text class="section-title" x="70" y="920">Market Scout and Trading</text>
+  <line class="section-rule" x1="70" y1="936" x2="1730" y2="936"/>
 
-  <rect class="service" x="1320" y="398" rx="16" ry="16" width="310" height="72"/>
-  <text class="service-text" x="1475" y="443" text-anchor="middle">portfolio-service</text>
+  <rect class="service" x="70" y="962" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="998" text-anchor="middle">partial-book-ingestion</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="991" x2="545" y2="991"/>
+  <rect class="topic scout" x="545" y="956" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="998" text-anchor="middle">crypto.scout.raw</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="991" x2="1175" y2="991"/>
+  <rect class="consumer" x="1175" y="962" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="998" text-anchor="middle">market-order-scout-service</text>
 
-  <path class="edge" marker-end="url(#arrow)" d="M 360 434 L 540 434"/>
-  <text class="label" x="450" y="416" text-anchor="middle">publishes</text>
+  <rect class="service" x="70" y="1058" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="1094" text-anchor="middle">market-order-scout</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="1087" x2="545" y2="1087"/>
+  <rect class="topic scout" x="545" y="1052" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="1094" text-anchor="middle">crypto.scout.ask-quotes</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="1087" x2="1175" y2="1087"/>
+  <rect class="consumer" x="1175" y="1058" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="1094" text-anchor="middle">market scout dashboard / diagnostics</text>
 
-  <path class="edge" marker-end="url(#arrow)" d="M 960 434 L 1320 434"/>
-  <text class="label" x="1140" y="416" text-anchor="middle">consumes</text>
+  <rect class="service" x="70" y="1154" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="1190" text-anchor="middle">market-order-scout</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="1183" x2="545" y2="1183"/>
+  <rect class="topic scout" x="545" y="1148" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="1190" text-anchor="middle">crypto.scout.matchable-asks</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="1183" x2="1175" y2="1183"/>
+  <rect class="consumer" x="1175" y="1154" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="1190" text-anchor="middle">transaction-service matching topology</text>
 
-  <!-- Row 3 -->
-  <rect class="service" x="60" y="618" rx="16" ry="16" width="240" height="72"/>
-  <text class="service-text" x="180" y="663" text-anchor="middle">user-service</text>
+  <rect class="service" x="70" y="1250" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="1286" text-anchor="middle">market-order-scout</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="1279" x2="545" y2="1279"/>
+  <rect class="topic scout" x="545" y="1244" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="1286" text-anchor="middle">crypto.scout.ask-opportunities</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="1279" x2="1175" y2="1279"/>
+  <rect class="consumer" x="1175" y="1250" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="1286" text-anchor="middle">market scout dashboard</text>
 
-  <rect class="topic-confirmed" x="540" y="602" rx="18" ry="18" width="420" height="92"/>
-  <text class="topic-text" x="750" y="650" text-anchor="middle">user.confirmed</text>
-  <text class="label" x="750" y="676" text-anchor="middle">(compacted user-read-model)</text>
+  <rect class="service" x="70" y="1346" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="1382" text-anchor="middle">market-order-scout</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="1375" x2="545" y2="1375"/>
+  <rect class="topic scout" x="545" y="1340" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="1382" text-anchor="middle">crypto.scout.window-summary</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="1375" x2="1175" y2="1375"/>
+  <rect class="consumer" x="1175" y="1346" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="1382" text-anchor="middle">market scout dashboard state store</text>
 
-  <rect class="service" x="1320" y="618" rx="16" ry="16" width="310" height="72"/>
-  <text class="service-text" x="1475" y="663" text-anchor="middle">transaction-service</text>
+  <text class="section-title" x="70" y="1460">Trading, User, Portfolio, and Compensation</text>
+  <line class="section-rule" x1="70" y1="1476" x2="1730" y2="1476"/>
 
-  <path class="edge" marker-end="url(#arrow)" d="M 300 654 L 540 654"/>
-  <text class="label" x="420" y="636" text-anchor="middle">publishes</text>
+  <rect class="service" x="70" y="1502" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="1538" text-anchor="middle">transaction-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="1531" x2="545" y2="1531"/>
+  <rect class="topic order" x="545" y="1496" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="1538" text-anchor="middle">transaction.buy-bids</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="1531" x2="1175" y2="1531"/>
+  <rect class="consumer" x="1175" y="1502" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="1538" text-anchor="middle">transaction-service matching topology</text>
 
-  <path class="edge" marker-end="url(#arrow)" d="M 960 654 L 1320 654"/>
-  <text class="label" x="1140" y="636" text-anchor="middle">consumes</text>
+  <rect class="service" x="70" y="1598" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="1634" text-anchor="middle">transaction-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="1627" x2="545" y2="1627"/>
+  <rect class="topic order" x="545" y="1592" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="1634" text-anchor="middle">transaction.order-matched</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="1627" x2="1175" y2="1627"/>
+  <rect class="consumer" x="1175" y="1598" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="1634" text-anchor="middle">transaction-service Camunda correlator</text>
 
-  <!-- Row 4 -->
-  <rect class="service" x="60" y="838" rx="16" ry="16" width="240" height="72"/>
-  <text class="service-text" x="180" y="883" text-anchor="middle">user-service</text>
+  <rect class="service" x="70" y="1694" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="1730" text-anchor="middle">transaction-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="1723" x2="545" y2="1723"/>
+  <rect class="topic order" x="545" y="1688" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="1730" text-anchor="middle">transaction.order.approved</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="1723" x2="1175" y2="1723"/>
+  <rect class="consumer" x="1175" y="1694" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="1730" text-anchor="middle">portfolio-service and valuation topology</text>
 
-  <rect class="topic-portfolio-comp" x="540" y="822" rx="18" ry="18" width="420" height="92"/>
-  <text class="topic-text" x="750" y="878" text-anchor="middle">crypto.portfolio.compensation</text>
+  <rect class="service" x="70" y="1790" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="1826" text-anchor="middle">user-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="1819" x2="545" y2="1819"/>
+  <rect class="topic user" x="545" y="1784" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="1826" text-anchor="middle">user.confirmed</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="1819" x2="1175" y2="1819"/>
+  <rect class="consumer" x="1175" y="1790" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="1826" text-anchor="middle">transaction-service confirmed-user cache</text>
 
-  <rect class="service" x="1320" y="838" rx="16" ry="16" width="310" height="72"/>
-  <text class="service-text" x="1475" y="883" text-anchor="middle">portfolio-service</text>
+  <rect class="service" x="70" y="1886" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="1922" text-anchor="middle">user-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="1915" x2="545" y2="1915"/>
+  <rect class="topic user" x="545" y="1880" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="1922" text-anchor="middle">user.display-currency</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="1915" x2="1175" y2="1915"/>
+  <rect class="consumer" x="1175" y="1886" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="1922" text-anchor="middle">portfolio-service, transaction-service</text>
 
-  <path class="edge" marker-end="url(#arrow)" d="M 300 874 L 540 874"/>
-  <text class="label" x="420" y="856" text-anchor="middle">publishes</text>
+  <rect class="service" x="70" y="1982" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="2018" text-anchor="middle">portfolio-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="2011" x2="545" y2="2011"/>
+  <rect class="topic portfolio" x="545" y="1976" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="2018" text-anchor="middle">portfolio.value.updated</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="2011" x2="1175" y2="2011"/>
+  <rect class="consumer" x="1175" y="1982" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="2018" text-anchor="middle">portfolio streams-value API / latest value topic</text>
 
-  <path class="edge" marker-end="url(#arrow)" d="M 960 874 L 1320 874"/>
-  <text class="label" x="1140" y="856" text-anchor="middle">consumes</text>
+  <rect class="service" x="70" y="2078" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="2114" text-anchor="middle">user-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="2107" x2="545" y2="2107"/>
+  <rect class="topic portfolio" x="545" y="2072" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="2114" text-anchor="middle">crypto.portfolio.compensation</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="2107" x2="1175" y2="2107"/>
+  <rect class="consumer" x="1175" y="2078" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="2114" text-anchor="middle">portfolio-service rollback handler</text>
 
-  <!-- Row 5 -->
-  <rect class="service" x="60" y="1058" rx="16" ry="16" width="300" height="72"/>
-  <text class="service-text" x="210" y="1103" text-anchor="middle">portfolio-service</text>
+  <rect class="service" x="70" y="2174" width="300" height="58" rx="10"/>
+  <text class="service-text" x="220" y="2210" text-anchor="middle">portfolio-service</text>
+  <line class="edge" marker-end="url(#arrow)" x1="370" y1="2203" x2="545" y2="2203"/>
+  <rect class="topic portfolio" x="545" y="2168" width="510" height="70" rx="12"/>
+  <text class="topic-text" x="800" y="2210" text-anchor="middle">crypto.user.compensation</text>
+  <line class="edge" marker-end="url(#arrow)" x1="1055" y1="2203" x2="1175" y2="2203"/>
+  <rect class="consumer" x="1175" y="2174" width="550" height="58" rx="10"/>
+  <text class="service-text" x="1450" y="2210" text-anchor="middle">user-service rollback handler</text>
 
-  <rect class="topic-user-comp" x="540" y="1042" rx="18" ry="18" width="420" height="92"/>
-  <text class="topic-text" x="750" y="1098" text-anchor="middle">crypto.user.compensation</text>
-
-  <rect class="service" x="1320" y="1058" rx="16" ry="16" width="240" height="72"/>
-  <text class="service-text" x="1440" y="1103" text-anchor="middle">user-service</text>
-
-  <path class="edge" marker-end="url(#arrow)" d="M 360 1094 L 540 1094"/>
-  <text class="label" x="450" y="1076" text-anchor="middle">publishes</text>
-
-  <path class="edge" marker-end="url(#arrow)" d="M 960 1094 L 1320 1094"/>
-  <text class="label" x="1140" y="1076" text-anchor="middle">consumes</text>
+  <text class="small-text" x="70" y="2285">Rows use the same left-to-right direction throughout: producer -> topic -> consumer/use.</text>
 </svg>

@@ -8,6 +8,10 @@ skinparam rectangleBackgroundColor #FAFAFA
 rectangle "Docker Compose" as docker #F5F5F5 {
     rectangle "Microservices" as services #E8EAF6 {
         component "Market Data" as MDS #FFF8E1
+        component "Partial Book\nIngestion" as MPB #FFF8E1
+        component "Market Order\nScout" as MOS #FFF8E1
+        component "Coin Metadata" as CMS #E0F2F1
+        component "FX Rate" as FXS #E0F2F1
         component "Portfolio" as PS #E8F5E9
         component "Transaction" as TS #E3F2FD
         component "User" as US #FCE4EC
@@ -15,27 +19,42 @@ rectangle "Docker Compose" as docker #F5F5F5 {
     }
 
     component "Apache Kafka" as Kafka #FFF3E0
+    component "Schema Registry" as SR #FFF3E0
+    component "Kafka UI" as KUI #ECEFF1
+    database "Portfolio DB" as PDB #E8F5E9
     database "Transaction DB" as TDB #E3F2FD
     database "User DB" as UDB #FCE4EC
-    database "Portfolio DB" as PDB #E8F5E9
+    component "pgAdmin" as PGA #ECEFF1
 }
 
 cloud "Binance API" as Binance #FFF3E0
+cloud "CoinGecko API" as CoinGecko #E0F2F1
+cloud "Frankfurter API" as Frankfurter #E0F2F1
 cloud "Camunda 8 SaaS" as Camunda #E3F2FD
 actor "End User" as User
 
 Binance --> MDS
-User --> PS
-User --> TS
+Binance --> MPB
+CoinGecko --> CMS
+Frankfurter --> FXS
+User -down-> PS
+User -down-> TS
 
-services <--> Kafka
-PS --- PDB
-TS --- TDB
-US --- UDB
+services -down-> Kafka : events
+services .down.> SR : Avro schemas
+PS -down- PDB
+TS -down- TDB
+US -down- UDB
+KUI .up.> Kafka
+KUI .right.> SR
+PGA .left.> PDB
+PGA .left.> TDB
+PGA .left.> UDB
 
-PS ..> Camunda
-TS ..> Camunda
-US ..> Camunda
-OS ..> Camunda
+MPB -right-> MOS
+OS -right.> Camunda
+US -right.> Camunda
+TS -right.> Camunda
+PS -right.> Camunda
 
 @enduml

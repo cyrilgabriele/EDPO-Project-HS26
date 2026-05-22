@@ -6,4 +6,4 @@
 #let professor = "Prof. Dr. Barbara Weber\nDr. Amine Abbad-Andaloussi"
 #let author = "Ioannis Theodosiadis - 25-603-457\nCyril Gabriele - 21-558-358"
 #let matriculation-number = " "
-#let submission-date = datetime(day: 16, month: 4, year: 2026)
+#let submission-date = datetime(day: 22, month: 5, year: 2026)

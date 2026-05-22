@@ -4,20 +4,28 @@ This chapter describes the system architecture of CryptoFlow. It begins with the
 
 == Service Topology
 
-CryptoFlow is a distributed system comprising five Spring Boot microservices that communicate exclusively through Apache Kafka events and Camunda 8 (Zeebe) process orchestration. No service makes synchronous REST or gRPC calls to another service for domain operations. The REST endpoints are exposed only for external client access.
+CryptoFlow is a distributed system comprising nine Spring Boot microservices that communicate exclusively through Apache Kafka events and Camunda 8 (Zeebe) process orchestration. No service makes synchronous REST or gRPC calls to another service for domain operations. The REST endpoints are exposed only for external client access.
 
 #figure(
   image("figures/context-map-detailed.svg", width: 100%),
-  caption: [Platform-level service topology showing the five services, event contracts, external actors, and Camunda orchestration],
+  caption: [Simplified platform topology showing deployable services grouped around the Kafka event backbone and Camunda orchestration backbone],
 ) <fig:system-overview>
 
-@fig:system-overview expands the high-level context map (@fig:context-map) and deployment overview (@fig:deployment-overview) from @project-description. The five deployable services, the shared event-contract module, the external Binance feed, and the two orchestration entry points that interact with Camunda are shown below with their responsibilities.
+@fig:system-overview expands the high-level context map (@fig:context-map) and deployment overview (@fig:deployment-overview) from @project-description. It intentionally groups the deployable services around two integration backbones instead of drawing every topic-level edge: Kafka carries the domain events and materialized read-model updates, while Camunda coordinates the onboarding and `placeOrder` workflows. The deployable services shown in the topology have the following responsibilities.
 
-/ Market Data Service: Inbound adapter to the Binance WebSocket API. Subscribes to real-time ticker streams for six cryptocurrency pairs and publishes `CryptoPriceUpdatedEvent` records to Kafka. The service is stateless and owns no database.
+/ Market Data Service: Inbound adapter to Binance ticker streams. Publishes `CryptoPriceUpdatedEvent` records, hosts OHLC stream processing, and owns no database. The price-localization stream in ADR-0030 remains a documented target shape, while the implemented OHLC and portfolio valuation flows currently read `crypto.price.raw`.
+
+/ Market Partial Book Ingestion Service: Inbound adapter to Binance partial book streams. Publishes replayable raw order-book depth events to `crypto.scout.raw`.
+
+/ Market Order Scout Service: Kafka Streams processor for the market-scout pipeline. Consumes `crypto.scout.raw`, derives ask-side scout events, and publishes matchable asks for trading.
+
+/ FX Rate Service: Reference-data producer that polls an external FX provider and publishes compacted `reference.fx.rate` events for display-currency conversion.
+
+/ Coin Metadata Service: Reference-data producer that polls external coin metadata and publishes compacted metadata events for market-data enrichment.
 
 / Portfolio Service: Maintains portfolio and holding state in PostgreSQL. It keeps a local in-memory price cache derived from `crypto.price.raw`, exposes REST endpoints for valuation queries, updates holdings from approved-order events, and acts as a Camunda job worker for portfolio creation during onboarding.
 
-/ Transaction Service: Owns the trading bounded context (ADR-0020). It deploys the `placeOrder.bpmn` process, validates incoming orders against a replicated read-model of confirmed users, matches pending orders against live prices, and publishes approved-order events via its transactional outbox for downstream portfolio updates.
+/ Transaction Service: Owns the trading bounded context (ADR-0020). It deploys the `placeOrder.bpmn` process, validates incoming orders against a replicated read-model of confirmed users, matches pending buy bids against Matchable Asks in a Kafka Streams topology, and publishes approved-order events via its transactional outbox for downstream portfolio updates.
 
 / User Service: Owns user accounts, confirmation links, and confirmation-state changes. It acts as a Camunda job worker for user preparation, creation, and invalidation during onboarding, publishes confirmed-user events for downstream consumers, and handles compensation by deleting users when the onboarding saga fails.
 
@@ -35,9 +43,9 @@ If the user clicks the confirmation link, `user-service` receives the HTTP reque
 
 === Trading Flow
 
-The trading flow stays primarily within the trading bounded context. A user submits an order through Camunda Tasklist, starting a `placeOrder` process instance. The `order-processing-worker` validates the user against the local confirmed-user read-model (ADR-0017), creates a `PENDING` transaction record, and begins matching against live prices from `crypto.price.raw`.
+The trading flow stays primarily within the trading bounded context, but the market decision is now fed by the Market Scout stream. A user submits an order through Camunda Tasklist, starting a `placeOrder` process instance. The `order-processing-worker` validates the user against the local confirmed-user read-model (ADR-0017), creates a `PENDING` transaction record, and publishes a `BuyBid` to `transaction.buy-bids`. In parallel, Market Scout publishes `MatchableAsk` records derived from Binance partial-book snapshots to `crypto.scout.matchable-asks`. A Kafka Streams topology in `transaction-service` matches bids and asks by symbol and emits `transaction.order-matched` when the event-time, price, quantity, and allocation rules pass.
 
-The process waits at an event-based gateway for either a price match (correlated by `transactionId`) or a one-minute timeout. On a match, the `approveOrderWorker` writes both the `APPROVED` status and an outbox row in a single database transaction (ADR-0014). The `publishOrderApprovedWorker` then publishes the outbox entry to Kafka and marks it as published. The Camunda email connector notifies the user that the order was executed.
+The process waits at an event-based gateway for either an order-matched event (correlated by `transactionId`) or a timeout. On a match, the `approveOrderWorker` writes both the `APPROVED` status and an outbox row in a single database transaction (ADR-0014). The `publishOrderApprovedWorker` then publishes the outbox entry to Kafka and marks it as published. The Camunda email connector notifies the user that the order was executed.
 
 The portfolio update happens outside the orchestrated flow: `portfolio-service` independently consumes the `OrderApprovedEvent` from Kafka and updates holdings via `upsertHolding()`, protected by an idempotent consumer guard (ADR-0016). This separation is deliberate — the order approval is the terminal business event in the trading context, and the portfolio propagation is an eventual downstream consequence (ADR-0013, ADR-0015).
 
@@ -45,7 +53,7 @@ If the `approveOrderWorker` or `publishOrderApprovedWorker` encounters a determi
 
 == Event-Driven Architectural Parts
 
-All domain events flow through Kafka. @fig:kafka-topology visualizes the current topology as implemented in the codebase, and @tab:kafka-topics summarizes the topic-level configuration.
+Domain events, reference-data updates, and derived stream-processing events flow through Kafka. @fig:kafka-topology visualizes the current topology as implemented in the codebase, and @tab:kafka-topics summarizes the topic-level configuration.
 
 #figure(
   image("figures/kafka-topology-render.svg", width: 100%),
@@ -54,16 +62,27 @@ All domain events flow through Kafka. @fig:kafka-topology visualizes the current
 
 #figure(
   caption: "Kafka topic configuration",
-  table(
-    columns: (auto, auto, 1.1fr, 0.9fr, 2.4fr),
-    [*Topic*], [*Partitions*], [*Retention / cleanup*], [*Message key*], [*Purpose*],
-    [`crypto.price.raw`], [3], [1 hour], [`symbol`], [Live price ticks from Binance],
-    [`crypto.price.raw.DLT`], [1], [1 hour], [Same as failed record], [Dead-letter stream for failed `crypto.price.raw` records after retries],
-    [`transaction.order.approved`], [3], [1 hour], [`trans-`#linebreak()`actionId`], [Approved order events consumed by the portfolio service],
-    [`user.confirmed`], [3], [Log-compacted], [`userId`], [Replicated read-model of confirmed users for the transaction service],
-    [`crypto.portfolio.compensation`], [3], [1 hour], [`userId`], [Portfolio rollback requests from the user service],
-    [`crypto.user.compensation`], [3], [1 hour], [`userId`], [User rollback requests from the portfolio service],
-  ),
+  text(size: 7.5pt)[
+    #table(
+      columns: (1.55fr, 0.45fr, 0.9fr, 0.85fr, 2.4fr),
+      inset: 2.5pt,
+      [*Topic*], [*Partitions*], [*Retention / cleanup*], [*Message key*], [*Purpose*],
+      [`crypto.price.raw`], [3], [1 hour], [`symbol`], [Live Binance ticker prices],
+      [`crypto.price.raw.DLT`], [1], [1 hour], [Original key], [Dead-letter stream for failed raw price records],
+      [`transaction.order.approved`], [3], [1 hour], [`trans-`#linebreak()`actionId`], [Approved orders consumed by Portfolio and valuation streams],
+      [`transaction.buy-bids`], [3], [1 hour], [`symbol`], [Buy bids emitted by the place-order worker for matching],
+      [`transaction.order-matched`], [3], [1 hour], [`trans-`#linebreak()`actionId`], [Matching decisions correlated back into Camunda],
+      [`user.confirmed`], [3], [Log-compacted], [`userId`], [Confirmed-user read-model for Trading],
+      [`user.display-currency`], [1], [Log-compacted], [`userId`], [Per-user Display Currency read-model for Portfolio and Trading],
+      [`reference.fx.rate`], [1], [Log-compacted], [`currencyPair`], [FX-rate reference table],
+      [`reference.crypto.metadata`], [1], [Log-compacted], [`symbol`], [Coin metadata for OHLC enrichment],
+      [`crypto.scout.raw`], [3], [5 min / size-bounded], [`symbol`], [Raw Binance partial-book depth events],
+      [`crypto.scout.ask-quotes / matchable-asks / ask-opportunities / window-summary`], [3], [5 min / size-bounded], [`symbol`], [Market Scout derived streams, including the cross-service ask contract for Trading],
+      [`crypto.ohlc.1m / 5m / 1h`], [3], [7 / 30 / 365 days], [`symbol`], [Closed OHLC bars emitted after window close and grace],
+      [`portfolio.value.updated`], [3], [Log-compacted], [`userId`], [Current portfolio value from the valuation topology],
+      [`crypto.portfolio.compensation / crypto.user.compensation`], [3], [1 hour], [`userId`], [Bidirectional onboarding rollback requests between User and Portfolio],
+    )
+  ],
 ) <tab:kafka-topics>
 
 The producer/consumer relationships are:
@@ -73,14 +92,18 @@ The producer/consumer relationships are:
   table(
     columns: (auto, 1fr, 1fr),
     [*Service*], [*Produces to*], [*Consumes from*],
-    [Market Data], [`crypto.price.raw`], [--],
-    [Portfolio], [`crypto.user.compensation`], [`crypto.price.raw`, `transaction.order.approved`, `crypto.portfolio.compensation`],
-    [Transaction], [`transaction.order.approved`], [`crypto.price.raw`, `user.confirmed`],
-    [User], [`crypto.portfolio.compensation`, `user.confirmed`], [`crypto.user.compensation`],
+    [Market Data], [`crypto.price.raw`, `crypto.ohlc.*`], [`crypto.price.raw`, `reference.crypto.metadata`],
+    [Partial Book Ingestion], [`crypto.scout.raw`], [--],
+    [Market Order Scout], [`crypto.scout.ask-quotes`, `crypto.scout.matchable-asks`, `crypto.scout.ask-opportunities`, `crypto.scout.window-summary`], [`crypto.scout.raw`],
+    [FX Rate], [`reference.fx.rate`], [--],
+    [Coin Metadata], [`reference.crypto.metadata`], [--],
+    [Portfolio], [`crypto.user.compensation`, `portfolio.value.updated`], [`crypto.price.raw`, `transaction.order.approved`, `crypto.portfolio.compensation`, `reference.fx.rate`, `user.display-currency`],
+    [Transaction], [`transaction.buy-bids`, `transaction.order-matched`, `transaction.order.approved`], [`crypto.price.raw`, `transaction.buy-bids`, `crypto.scout.matchable-asks`, `transaction.order-matched`, `user.confirmed`, `reference.fx.rate`, `user.display-currency`],
+    [User], [`crypto.portfolio.compensation`, `user.confirmed`, `user.display-currency`], [`crypto.user.compensation`],
   ),
 ) <tab:kafka-producers-consumers>
 
-@tab:kafka-topics captures the topic-level configuration, while @tab:kafka-producers-consumers shows which service publishes and consumes each stream. The onboarding service is intentionally absent because it coordinates via Zeebe rather than Kafka. Except for the compacted `user.confirmed` topic, all topics inherit the broker's 1-hour development retention from Docker Compose. The partition key strategy is topic-specific: `crypto.price.raw` uses the trading symbol (e.g., `BTCUSDT`) with the deterministic `symbolIndex % numPartitions` mapping from ADR-0004; `transaction.order.approved` uses `transactionId`; `user.confirmed` and both compensation topics use `userId`; and the DLT preserves the failed record's original Kafka key.
+@tab:kafka-topics captures the topic-level configuration, while @tab:kafka-producers-consumers shows which service publishes and consumes each stream. The onboarding service is intentionally absent because it coordinates via Zeebe rather than Kafka. Topic cleanup is deliberately mixed: raw and matching streams use short delete retention, reference data and current-value streams are compacted caches, and OHLC bars retain longer interval-specific histories. The partition key strategy is topic-specific: market and scout streams use normalized symbol keys; `transaction.order.approved` and `transaction.order-matched` use `transactionId`; user-related topics use `userId`; FX rates use directed currency-pair keys such as `USDCHF`; and the DLT preserves the failed record's original Kafka key.
 
 === Broker, Producer, and Consumer Configuration
 
@@ -98,7 +121,7 @@ Beyond the topic layout, the Kafka layer is configured at three levels: broker, 
     [`offsets.topic.replication.factor`], [`1`], [Required for single-broker operation],
     [`log.retention.hours`], [`1`], [Sufficient for real-time price streaming; consumers that fall behind lose events. Domain state is persisted in PostgreSQL, so Kafka is not the system of record],
     [`log.retention.bytes`], [`100 MB`], [Per-partition cap that prevents disk exhaustion in development],
-    [`log.cleanup.policy`], [`delete`], [Default for all topics except `user.confirmed`, which overrides to `compact` at topic level],
+    [`log.cleanup.policy`], [`delete`], [Default for raw and transient streams. Reference-data and current-value topics override to `compact` at topic level],
   ),
 ) <tab:kafka-broker-config>
 
@@ -179,16 +202,16 @@ The `userOnboarding.bpmn` process, deployed by the onboarding service, implement
 
 === Place Order Process
 
-The `placeOrder.bpmn` process, deployed by the transaction service, implements a Fairy Tale Saga (ADR-0013) that keeps synchronous service tasks inside the trading context but accepts eventual consistency at the boundary to the portfolio context.
+The `placeOrder.bpmn` process (see @fig:placeorder-fairy-tale-saga), deployed by the transaction service, implements a Fairy Tale Saga (ADR-0013) that keeps synchronous service tasks inside the trading context but accepts eventual consistency at the boundary to the portfolio context.
 
 #figure(
   image("figures/placeOrder-bpmn.png", width: 100%),
-  caption: [Place order BPMN process with price matching, timeout handling, and downstream publication],
+  caption: [Place order BPMN process with Kafka-backed matching, timeout handling, and downstream publication],
 ) <fig:placeorder-fairy-tale-saga>
 
 #figure(
   image("figures/placeOrder-sequence.svg", width: 90%),
-  caption: [Place order runtime sequence: local user validation, price-match wait, approval, publication, and downstream portfolio update],
+  caption: [Place order runtime sequence: local user validation, Kafka-backed matching wait, approval, publication, and downstream portfolio update],
 ) <fig:placeorder-sequence>
 
 #figure(
@@ -198,7 +221,13 @@ The `placeOrder.bpmn` process, deployed by the transaction service, implements a
 
 @fig:placeorder-fairy-tale-saga shows the orchestrated BPMN shape, while @fig:placeorder-sequence shows the core runtime collaboration. This includes the downstream `portfolio-service` consumer that is deliberately outside the orchestrated flow (ADR-0013, ADR-0015) and therefore not visible in the BPMN. The outbox write/publish/recover mechanics are kept out of @fig:placeorder-sequence to preserve focus; @fig:outbox-sequence shows them as a dedicated detail. Its structure reflects the following modeling decisions:
 
-*Event-based price-match wait.* The process suspends at an event-based gateway waiting for a `price-matched` message correlated by `transactionId`. This wait is of non-deterministic duration. It may last seconds or never terminate. Zeebe durably suspends the instance without holding a distributed lock or database connection (ADR-0013). A one-minute timer provides an upper bound: if no match occurs, the order is rejected and the user is notified.
+*Event-based matching wait.* The process suspends at an event-based gateway while the transaction matching topology waits for a compatible `MatchableAsk`. When `transaction-service` consumes a `transaction.order-matched` event, it correlates the Camunda message by `transactionId`. This wait is of non-deterministic duration. It may last seconds or never terminate. Zeebe durably suspends the instance without holding a distributed lock or database connection (ADR-0013). A 35-second timer mirrors the 30-second matching window plus 5-second grace period: if no match occurs, the order is rejected and the user is notified.
+
+==== Matching Extension
+
+The original `placeOrder` flow matched pending orders against the latest ticker price held inside `transaction-service`. The stream-processing extension keeps the BPMN shape and the Fairy Tale Saga boundary intact, but replaces that simplified price check with a bid/ask matching pipeline. A placed order becomes a `BuyBid` event, `market-order-scout-service` supplies `MatchableAsk` events derived from Binance partial-book data, and a Kafka Streams topology in `transaction-service` emits `transaction.order-matched` when a bid can be allocated to an ask within the configured event-time validity window.
+
+At the architecture level, the important point is separation of concerns: Kafka Streams owns the market-event matching decision, while Camunda still owns the business workflow that approves, rejects, notifies, and publishes the approved-order event through the outbox. The detailed topology, state stores, event-time rules, and allocation semantics are described in @kafka-streams-extensions.
 
 *Transactional outbox for reliable publication.* The approval path uses two sequential workers. `approveOrderWorker` writes both the `APPROVED` status and an outbox row in a single local database transaction. `publishOrderApprovedWorker` then reads and publishes the outbox entry to Kafka. A scheduled safety net republishes any rows that remain unpublished after a crash (ADR-0014). This guarantees that an approved order does not silently miss the event that must later update the portfolio.
 
@@ -212,11 +241,11 @@ This section covers the software-level decisions that support the event-driven a
 
 === Microservice Decomposition
 
-CryptoFlow is implemented as five independently deployable Spring Boot 3.5 services on Java 21. Each service maps to one bounded context and communicates exclusively through Kafka and Zeebe. REST endpoints are exposed only for external client access, not for inter-service calls (ADR-0001).
+CryptoFlow is implemented as independently deployable Spring Boot 3.5 services on Java 21. Each service belongs to a bounded context and communicates with other services exclusively through Kafka and Zeebe. REST endpoints are exposed only for external client access, not for inter-service calls (ADR-0001).
 
 === Hexagonal Architecture
 
-All five services follow the same internal structure separating the business core from technical adapters:
+The services follow the same internal structure where applicable, separating the business core from technical adapters:
 
 - `domain/` contains the domain model and invariants.
 - `application/` contains use-case logic and the ports that the core depends on.
@@ -233,11 +262,11 @@ Schema changes are managed through Flyway versioned migrations. Hibernate runs i
 
 === Shared Event Contracts
 
-Event schemas are defined once in the `shared-events` Maven module (ADR-0005). All producing and consuming services depend on it at compile time, ensuring type-safe event contracts. The module contains only Java records and Jackson serialization dependencies  but no business logic. Schema changes are atomic: a single commit updates the contract and all affected consumers.
+Event schemas are defined once in the `shared-events` Maven module (ADR-0005). All producing and consuming services depend on it at compile time, ensuring type-safe event contracts. The module contains Java records, Avro schemas, and serialization dependencies but no business logic. Schema changes are atomic: a single commit updates the contract and all affected consumers. New cross-service derived events use Avro with Confluent Schema Registry per ADR-0032; raw replay topics remain JSON.
 
 == Key Architectural Decisions
 
-The repository contains twenty formal Architectural Decision Records (ADRs) in `docs/adrs`. The most significant decisions are:
+The repository contains thirty-five accepted Architectural Decision Records (ADRs) in `docs/adrs`, excluding the template record. The most significant decisions are:
 
 - *ADR-0001*: Kafka as the sole inter-service communication channel — no synchronous REST between services.
 - *ADR-0002*: Event-Carried State Transfer for price data, enabling the portfolio service to answer queries without calling the market data service.
@@ -248,5 +277,12 @@ The repository contains twenty formal Architectural Decision Records (ADRs) in `
 - *ADR-0013*: Fairy Tale Saga for the placeOrder workflow, accepting eventual cross-service consistency to avoid distributed locks over a non-deterministic wait.
 - *ADR-0014*: Transactional Outbox for reliable publication of approved-order events, preventing silent data loss between database commit and Kafka publication.
 - *ADR-0017*: Replicated read-model for autonomous user validation at order placement, avoiding synchronous cross-service calls.
+- *ADR-0018 / ADR-0035*: Human escalation for deterministic workflow failures, amended so operations resolution loops back into the `placeOrder` happy path instead of terminating the process.
 - *ADR-0019*: Database per service for stateful bounded contexts, preserving independent deployment and schema ownership.
 - *ADR-0020*: Transaction-service as sole owner of the trading bounded context, keeping order execution concerns isolated from user and portfolio management.
+- *ADR-0021 to ADR-0025*: Market Scout uses Binance Partial Book Depth Streams as its replayable raw input, keeps raw events as JSON, derives ask-side Avro events, splits ingestion from scout processing, accepts a new Kafka Streams application id after the split, and enriches derived ask events with best-ask and notional features.
+- *ADR-0026 / ADR-0027*: `MatchableAsk` is the narrow cross-service Avro contract from Market Scout to Trading, and bid/ask matching is implemented as a transaction-service Kafka Streams topology with a 30-second event-time validity window and price-time priority.
+- *ADR-0028 to ADR-0030*: Display Currency is user-owned presentation data propagated through a compacted Kafka topic; FX rates live in a Reference Data bounded context; localized prices are the ADR-locked stream-table join target once the clean-price stream is available.
+- *ADR-0031 / ADR-0033*: OHLC bars are emitted venue-native in USDT as closed bars and enriched with coin metadata through a GlobalKTable join, leaving display-currency conversion to read time.
+- *ADR-0032*: New cross-service derived events use Avro with Confluent Schema Registry, while established raw JSON topics and registryless Market Scout Avro topics remain unchanged.
+- *ADR-0034*: Portfolio valuation runs as a Kafka Streams topology inside `portfolio-service`, rebuilding holdings and values from event streams and exposing an interactive-query endpoint alongside the Postgres-backed read model.

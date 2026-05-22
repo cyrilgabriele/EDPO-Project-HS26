@@ -122,13 +122,13 @@ This chapter summarises the current architectural decision records (ADRs) refere
 
 *Consequences:* Compensation paths remain reachable for every failure mode, including validation and duplicate cases. The trade-off is reduced failure visibility in Camunda Operate because technically the jobs complete successfully.
 
-== ADR-0013: Fairy Tale Saga (seo) for the `placeOrder` Workflow <adr-0013>
+== ADR-0013: Fairy Tale Saga for the `placeOrder` Workflow <adr-0013>
 
 *Status:* Accepted
 
 *Context:* The `placeOrder` process contains an Event-Based Gateway that may wait for a price match for an arbitrary amount of time. Cross-service consistency with portfolio updates is required, but local ACID transactions must remain service-local.
 
-*Decision:* The workflow adopts the Fairy Tale Saga (seo) pattern: synchronous Zeebe service tasks for local transactions and eventual cross-service consistency through Kafka. Deterministic business failures are handled via BPMN error boundaries rather than saga-wide compensation.
+*Decision:* The workflow adopts the Fairy Tale Saga pattern: synchronous Zeebe service tasks for local transactions and eventual cross-service consistency through Kafka. Deterministic business failures are handled via BPMN error boundaries rather than saga-wide compensation.
 
 *Consequences:* Zeebe can suspend the workflow at the price-match wait without holding open database or network resources, and each service keeps its own transaction boundary. The trade-off is an accepted eventual-consistency window after order approval and no compensation once an order is semantically terminal.
 
@@ -298,9 +298,9 @@ This chapter summarises the current architectural decision records (ADRs) refere
 
 *Context:* USDT price streams can be converted on read or enriched stream-side. The project scope values demonstrating the stream-table join pattern in a customer-facing flow.
 
-*Decision:* Add a Kafka Streams enrichment app that joins `crypto.price.clean` with the `reference.fx.rate` GlobalKTable and emits `LocalizedPrice` to `crypto.price.localized`, keyed by symbol. Each event carries the source USDT price plus a map of supported display currencies.
+*Decision:* Record the target design for a Kafka Streams enrichment app that joins `crypto.price.clean` with the `reference.fx.rate` GlobalKTable and emits `LocalizedPrice` to `crypto.price.localized`, keyed by symbol. Each event carries the source USDT price plus a map of supported display currencies. The current implementation keeps valuation and OHLC on `crypto.price.raw` until the clean-price stream is available.
 
-*Consequences:* Portfolio and Trading consume localised prices and select the requesting user's currency at read time. The trade-off is another streams app, topic, and failure surface, but the topology is simple and scales with the supported currency set.
+*Consequences:* The ADR fixes the intended localized-price contract and join shape, while the shipped system still performs implemented portfolio valuation and OHLC processing from raw USDT prices. The trade-off of the target design is another streams app, topic, and failure surface, but the topology is simple and scales with the supported currency set.
 
 == ADR-0031: Venue-Native OHLC with Read-Time Conversion <adr-0031>
 
@@ -316,7 +316,7 @@ This chapter summarises the current architectural decision records (ADRs) refere
 
 *Status:* Accepted
 
-*Context:* New derived events such as `FxRate`, `LocalizedPrice`, `PortfolioValue`, `Ohlc`, and `UserDisplayCurrencyUpdated` cross multiple service ownership boundaries. Registryless Avro is too informal for that level of schema evolution.
+*Context:* New derived events such as `FxRate`, `PortfolioValue`, `Ohlc`, `CoinMetadata`, and `UserDisplayCurrencyUpdated` cross multiple service ownership boundaries. `LocalizedPrice` is also defined as the ADR-0030 target contract, although the corresponding stream has not shipped yet. Registryless Avro is too informal for that level of schema evolution.
 
 *Decision:* Adopt Avro with Confluent Schema Registry for those derived event types and add `schema-registry` to Docker Compose. Existing JSON topics remain JSON, and existing registryless Market Scout Avro topics are not migrated as part of this decision.
 
