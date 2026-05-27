@@ -12,9 +12,11 @@ In practice, `market-data-service` publishes `CryptoPriceUpdatedEvent` records t
 
 === Event-Carried State Transfer
 
-Lecture 2 presented Event-Carried State Transfer (ECST), amongst others, as the pattern in which an event carries enough state for consumers to maintain their own local view instead of querying the source service. CryptoFlow applies ECST in four places.
+Lecture 2 presented Event-Carried State Transfer (ECST), amongst others, as the pattern in which an event carries enough state for consumers to maintain their own local view instead of querying the source service. CryptoFlow applies ECST in the core domain flows and extends it in the second half with compacted reference-data topics.
 
 First, @adr-0002 replicates market prices from `market-data-service` into the `portfolio-service` price cache, so portfolio valuation reads the locally maintained state instead of calling the producer. Second, @adr-0015 keeps portfolio updates autonomous: after an order is approved, `transaction-service` publishes `OrderApprovedEvent`, and `portfolio-service` updates holdings independently. Third, @adr-0011 uses event-carried compensation requests so user and portfolio data can be deleted across service boundaries without synchronous rollback calls. Fourth, @adr-0017 uses the same principle for user validation: `transaction-service` maintains a local confirmed-user projection from `UserConfirmedEvent` messages and validates new orders locally. The second-half extension applies the same cache-as-topic idea to FX rates, coin metadata, display currency, and portfolio values through compacted topics.
+
+Display Currency is the clearest second-half ECST example. `user-service` owns the user's ISO-4217 display preference, persists it with a default of `USD`, exposes `PATCH /users/{id}/display-currency`, and publishes `UserDisplayCurrencyUpdated` to the compacted `user.display-currency` topic (@adr-0028). `portfolio-service` and `transaction-service` consume that topic into local caches. Portfolio converts holdings at API read time from its USDT price and FX caches, while Transaction uses the same local display-currency, FX, and price state for the buy-time quote widget and stores the display price shown at order placement. No dashboard or order path needs a synchronous call back to `user-service` or `fx-rate-service`.
 
 === Process Orchestration with Camunda 8 with Zeebe
 
@@ -110,7 +112,7 @@ Market Scout aggregates `AskOpportunity` events into window summaries. The topol
 
 The OHLC topology is the more complete windowing implementation. @adr-0031 decides that OHLC bars are emitted venue-native in USDT on `crypto.ohlc.1m`, `crypto.ohlc.5m`, and `crypto.ohlc.1h`. The topology extracts event timestamps from price events, aggregates open/high/low/close values in tumbling event-time windows, applies a grace period, and uses `suppress(untilWindowCloses)` so downstream consumers receive one final closed candle rather than every intermediate update.
 
-Transaction matching uses event-time validity as business logic rather than as a DSL windowed join. @adr-0027 defines a 30-second bid validity interval plus a five-second fallback margin aligned with the Camunda timeout. A `MatchableAsk` can match a `BuyBid` only if the ask's event time falls inside that interval and price/quantity constraints pass.
+Transaction matching uses event-time validity as business logic rather than as a DSL windowed join. @adr-0027 defines a 30-second bid validity interval plus a five-second processing and retention margin aligned with the Camunda timeout. A `MatchableAsk` can match a `BuyBid` only if the ask's event time falls inside the 30-second business interval and price/quantity constraints pass.
 
 === Joins and Repartitioning
 
@@ -126,6 +128,6 @@ The stream-processing lectures also emphasized that derived streams need explici
 
 Raw replay topics remain JSON, following @adr-0003 and the raw-boundary decision in @adr-0022. This keeps `crypto.price.raw` and `crypto.scout.raw` easy to inspect and replay during demonstrations.
 
-Scout-local derived topics use registryless Avro. `AskQuote`, `AskOpportunity`, and `ScoutWindowSummary` are owned by `market-order-scout-service`, so @adr-0022 keeps them as local generated Avro classes without adding Schema Registry infrastructure. `MatchableAsk` is narrower and more stable because it crosses into the Trading bounded context; @adr-0026 therefore places it in `shared-events`.
+Scout-local derived topics use registryless Avro. `AskQuote`, `AskOpportunity`, and `ScoutWindowSummary` are owned by `market-order-scout-service`, so @adr-0022 keeps them as local generated Avro classes without adding Schema Registry infrastructure. `MatchableAsk` is a deliberate boundary case: @adr-0026 places it in `shared-events` because it crosses into the Trading bounded context, but the shipped implementation still serializes it with the local registryless `SpecificAvroSerde` rather than Confluent Schema Registry.
 
 New cross-service derived contracts use Confluent Schema Registry. @adr-0032 introduces registry-backed Avro for events such as `FxRate`, `LocalizedPrice`, `PortfolioValue`, `Ohlc`, `CoinMetadata`, and `UserDisplayCurrencyUpdated`. In the shipped slice, `FxRate`, `PortfolioValue`, `Ohlc`, `CoinMetadata`, and `UserDisplayCurrencyUpdated` are active registry-backed contracts, while `LocalizedPrice` remains the schema-managed target for ADR-0030. This gives independently deployable producers and consumers a central compatibility boundary while preserving JSON at raw replay points.

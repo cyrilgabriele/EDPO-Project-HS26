@@ -44,7 +44,7 @@
 
 *Raw and derived streams should be separated deliberately.* Splitting Binance partial-book ingestion from the Market Order Scout topology added one deployable, but it made `crypto.scout.raw` a replayable boundary and kept derived stream logic out of the WebSocket adapter. The same principle applied to the portfolio valuation stream: the source topic remained the durable fact, while the state store and compacted output were rebuildable projections.
 
-*Workflow timers and stream windows must be designed together.* The order-matching flow crossed both halves of the course: Camunda waited for a match, while Kafka Streams evaluated bids and asks within an event-time window. Aligning the 30 s validity window, 5 s grace period, and `PT35S` BPMN rejection timer made the boundary deterministic. Designing these values separately would have created race conditions between late stream events and the workflow timeout path.
+*Workflow timers and stream windows must be designed together.* The order-matching flow crossed both halves of the course: Camunda waited for a match, while Kafka Streams evaluated bids and asks within an event-time window. Aligning the 30 s validity window, 5 s processing and retention margin, and `PT35S` BPMN rejection timer made the boundary deterministic. Designing these values separately would have created race conditions between late stream events and the workflow timeout path.
 
 == Teamwork Lessons
 

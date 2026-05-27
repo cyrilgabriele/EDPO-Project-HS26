@@ -107,7 +107,7 @@ The producer/consumer relationships are:
 
 === Broker, Producer, and Consumer Configuration
 
-Beyond the topic layout, the Kafka layer is configured at three levels: broker, producer, and consumer. @tab:kafka-broker-config, @tab:kafka-producer-config, and @tab:kafka-consumer-config summarize the settings and their rationale.
+Beyond the topic layout, the Kafka layer is configured at three levels: broker, producer, and consumer. @tab:kafka-broker-config, @tab:kafka-producer-config, and @tab:kafka-consumer-config summarize the default settings and the deliberate deviations introduced by the second-half stream-processing work.
 
 #show figure:set block(breakable: true)
 
@@ -128,27 +128,31 @@ Beyond the topic layout, the Kafka layer is configured at three levels: broker, 
 #figure(
   caption: "Kafka producer configuration",
   table(
-    columns: (1.2fr, auto, 2.4fr),
-    [*Property*], [*Value*], [*Rationale*],
-    [`acks`], [`all`], [The broker acknowledges only after all in-sync replicas confirm the write. With a single broker this is functionally equivalent to `acks=1`, but the setting is forward-compatible with a multi-broker deployment (ADR-0001)],
-    [`key.serializer`], [`StringSerializer`], [Message keys are plain strings (symbol, userId, transactionId)],
-    [`value.serializer`], [`JsonSerializer`], [Jackson JSON without type headers (ADR-0003). Readable payloads, no schema registry required],
+    columns: (1.25fr, 1.2fr, 2.7fr),
+    [*Scope / Property*], [*Value*], [*Rationale*],
+    [Default producer `acks`], [`all`], [Market-data, partial-book, reference-data, and Avro producers request all in-sync replicas. With a single broker this is functionally equivalent to `acks=1`, but the setting is forward-compatible with a replicated deployment (ADR-0001)],
+    [Default key serializer], [`StringSerializer`], [Message keys are plain strings: symbols, user ids, transaction ids, or directed currency-pair keys],
+    [Legacy/domain value serializer], [`JsonSerializer`], [Raw replay topics and original domain events remain readable JSON without type headers (ADR-0003)],
+    [Derived cross-service value serializer], [`KafkaAvro-`#linebreak()`Serializer` / `SpecificAvroSerde`], [`FxRate`, `CoinMetadata`, `Ohlc`, `PortfolioValue`, and `UserDisplayCurrencyUpdated` use Avro with Schema Registry (ADR-0032)],
+    [Scout-local derived serializer], [Registryless Avro serde], [`AskQuote`, `AskOpportunity`, `ScoutWindowSummary`, and the shared `MatchableAsk` contract use generated Avro classes without Schema Registry],
   ),
 ) <tab:kafka-producer-config>
 
 #figure(
   caption: "Kafka consumer configuration",
   table(
-    columns: (1.4fr, auto, 2.2fr),
-    [*Property*], [*Value*], [*Rationale*],
-    [`auto.offset.reset`], [`earliest`], [New consumer groups replay from the oldest retained record. Validated in the consumer offset experiments (@results): `latest` silently skips retained history],
-    [`enable.auto.commit`], [`false`], [Offsets are committed after processing, not on poll. Prevents the consumer from advancing past records it has not yet processed],
-    [`value.deserializer`], [`ErrorHandling-`#linebreak()`Deserializer`], [Wraps `JsonDeserializer`. Malformed messages (poison pills) are caught at deserialization rather than crashing the consumer loop],
-    [`error handler`], [DLT recovery], [After 3 attempts (2 retries at 500 ms fixed backoff), a failed record is published to `crypto.price.raw.DLT`. This prevents a single bad record from blocking the partition],
+    columns: (1.45fr, auto, 2.35fr),
+    [*Scope / Property*], [*Value*], [*Rationale*],
+    [Listener offset reset], [`earliest`], [New consumer groups replay from the oldest retained record. Validated in the consumer offset experiments (@results): `latest` silently skips retained history],
+    [Listener auto commit], [`false`], [Offsets are committed after processing, not on poll. Prevents the consumer from advancing past records it has not yet processed],
+    [JSON price listeners], [`ErrorHandling-`#linebreak()`Deserializer` + DLT], [Malformed price records are caught at deserialization and, after retries, published to `crypto.price.raw.DLT` so one poison pill does not block the partition],
+    [Compensation listeners], [JSON deserializer + retry], [Compensation events are idempotent and retryable; they do not currently route to a DLT],
+    [Avro/reference listeners], [`KafkaAvro-`#linebreak()`Deserializer`], [FX-rate and display-currency consumers use dedicated Schema Registry-aware factories],
+    [Kafka Streams apps], [`earliest` + `LogAndContinue-`#linebreak()`ExceptionHandler`], [A fresh Streams application can rebuild retained state, while deserialization failures in stream tasks are logged and skipped instead of blocking the topology],
   ),
 ) <tab:kafka-consumer-config>
 
-All producer configurations across services use the same settings. The `ErrorHandlingDeserializer` and DLT recovery are configured for the price-event consumers in `portfolio-service` and `transaction-service`. The compensation consumers in `user-service` and `portfolio-service` use the same offset and commit settings but do not currently route to a DLT, because compensation events are idempotent by design. A failed compensation attempt is retried on the next delivery rather than dead-lettered.
+The configuration is intentionally not uniform anymore. The first-half services still use JSON for raw and domain events, while the second-half additions introduced Schema Registry-backed Avro for cross-service derived events and registryless Avro for scout-local derived streams. The same distinction appears on the consumer side: listener containers, Avro consumers, and Kafka Streams applications each use the error-handling model that fits their topic ownership and replay semantics.
 
 *Single-broker trade-off.* The current deployment runs a single Kafka broker with no replication. This means that `acks=all` provides no durability advantage over `acks=1`. The experiments in @results demonstrate this directly: data loss under `acks=1` only occurs when a leader crashes before followers replicate, and with one broker there are no followers. The configuration is a conscious development-environment choice (ADR-0001): the architecture and code are designed for a replicated cluster, but the Docker Compose stack prioritizes simplicity over fault tolerance. A production deployment would require a multi-broker cluster with `replication.factor >= 3` and `min.insync.replicas = 2` to realize the durability guarantees that `acks=all` is designed to provide.
 
@@ -221,7 +225,7 @@ The `placeOrder.bpmn` process (see @fig:placeorder-fairy-tale-saga), deployed by
 
 @fig:placeorder-fairy-tale-saga shows the orchestrated BPMN shape, while @fig:placeorder-sequence shows the core runtime collaboration. This includes the downstream `portfolio-service` consumer that is deliberately outside the orchestrated flow (ADR-0013, ADR-0015) and therefore not visible in the BPMN. The outbox write/publish/recover mechanics are kept out of @fig:placeorder-sequence to preserve focus; @fig:outbox-sequence shows them as a dedicated detail. Its structure reflects the following modeling decisions:
 
-*Event-based matching wait.* The process suspends at an event-based gateway while the transaction matching topology waits for a compatible `MatchableAsk`. When `transaction-service` consumes a `transaction.order-matched` event, it correlates the Camunda message by `transactionId`. This wait is of non-deterministic duration. It may last seconds or never terminate. Zeebe durably suspends the instance without holding a distributed lock or database connection (ADR-0013). A 35-second timer mirrors the 30-second matching window plus 5-second grace period: if no match occurs, the order is rejected and the user is notified.
+*Event-based matching wait.* The process suspends at an event-based gateway while the transaction matching topology waits for a compatible `MatchableAsk`. When `transaction-service` consumes a `transaction.order-matched` event, it correlates the Camunda message by `transactionId`. This wait is of non-deterministic duration. It may last seconds or never terminate. Zeebe durably suspends the instance without holding a distributed lock or database connection (ADR-0013). A 35-second timer mirrors the 30-second matching window plus a five-second processing and retention margin: if no match occurs, the order is rejected and the user is notified.
 
 ==== Matching Extension
 

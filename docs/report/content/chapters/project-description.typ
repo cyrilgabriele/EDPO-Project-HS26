@@ -94,28 +94,32 @@ The following EDPO lecture concepts are implemented in CryptoFlow. They are grou
 
 Inside the Docker Compose boundary, the Spring Boot services communicate through Apache Kafka and persist state in service-owned PostgreSQL databases where needed. Market and reference-data ingestion services are stateless; Portfolio, Transaction, and User each own a dedicated database. Kafka Streams applications materialize local RocksDB-backed state stores for matching, OHLC, Scout dashboard statistics, and portfolio valuation. Kafka UI and pgAdmin provide developer-facing observability.
 
-Outside the local runtime, three external systems integrate with the platform. Binance delivers real-time price feeds over WebSocket. Camunda 8 hosts the BPMN process engine, with services connecting as stateless gRPC workers. End users interact through REST endpoints exposed by Portfolio and Transaction, and through Camunda Tasklist for human-intervention tasks.
+Outside the local runtime, four external systems integrate with the platform. Binance delivers real-time ticker and partial-book feeds over WebSocket, Frankfurter provides FX rates, CoinGecko provides coin metadata, and Camunda 8 hosts the BPMN process engine with services connecting as stateless gRPC workers. End users interact through REST endpoints exposed by Portfolio and Transaction, and through Camunda Tasklist for human-intervention tasks.
 
 The two main end-to-end flows that define the platform from the outside are the onboarding flow, which creates a confirmed user together with a matching portfolio, and the trading flow, which matches pending buy bids against ask liquidity derived from live order-book snapshots before propagating approved trades to the portfolio context. @architecture provides the service topology, event topology, and BPMN interaction model.
 
+#pagebreak()
 == Technology Stack
 
 @tab:tech-stack summarises the technology choices. Where a technology was evaluated through a formal architectural decision, the corresponding ADR is referenced.
 
 #figure(
   caption: "Technology stack",
-  table(
-    columns: (1.2fr, 0.8fr, 2.5fr),
+  text(size: 8.7pt)[#table(
+    columns: (1.25fr, 0.85fr, 2.4fr),
+    inset: 3pt,
     [*Technology*], [*ADR*], [*Rationale*],
-    [Java 21 + Spring Boot 3.5], [--], [Provides the service runtime, dependency injection, and web layer. Chosen for team familiarity and broad Kafka/Camunda library support.],
-    [Apache Kafka (Confluent 7.6, KRaft)], [@adr-0001], [Sole inter-service communication channel for domain events. KRaft mode removes the Zookeeper dependency. Topics are explicitly declared via Spring `@Bean` definitions.],
+    [Java 21 + Spring Boot 3.5.11], [--], [Provides the service runtime, dependency injection, web layer, scheduling, JPA integration, and Kafka/Camunda adapters.],
+    [Apache Kafka (Confluent 7.6, KRaft)], [@adr-0001], [Sole inter-service communication channel for domain events and stream inputs. Topics are explicitly declared via Spring `NewTopic` beans.],
     [Camunda 8 / Zeebe (SaaS)], [@adr-0008], [Orchestrates multi-step BPMN processes. Services act as stateless gRPC job workers. SaaS deployment provides managed scalability and Operate dashboard.],
     [PostgreSQL 16 + Flyway], [@adr-0007, @adr-0019], [Stores persistent data for the Portfolio, User, and Transaction bounded contexts with one database per service. Flyway manages schema migrations; Hibernate runs in `validate` mode only.],
-    [Docker Compose], [--], [Provisions the full local infrastructure stack (Kafka, PostgreSQL, Kafka UI, pgAdmin) and the application services. Enables reproducible single-command startup.],
-    [Binance WebSocket API], [@adr-0006], [Provides real-time cryptocurrency price feeds at no cost and without authentication. Keeps the market-data path fully event-driven end-to-end.],
-    [Kafka Streams], [@adr-0027, @adr-0031, @adr-0034], [Runs continuously active stream-processing topologies for bid/ask matching, OHLC aggregation, Market Scout summaries, and portfolio valuation state stores.],
-    [Confluent Schema Registry + Avro], [@adr-0032], [Provides schema-managed contracts for new cross-service derived events, while raw replay topics stay JSON.],
-    [Jackson JSON], [@adr-0003], [Standardised serialization for all Kafka messages. Readable payloads, no schema registry required. Trade-off is larger payloads and no broker-side schema validation.],
+    [Docker Compose], [--], [Provisions Kafka, Schema Registry, PostgreSQL, Kafka UI, pgAdmin, and all application services for reproducible local integration.],
+    [Binance WebSocket APIs], [@adr-0006, @adr-0021], [Provides spot ticker data for prices and USD-M futures partial-book depth for Market Scout without request-time polling.],
+    [Frankfurter FX API], [@adr-0029], [Provides scheduled USD-based FX reference data for display-currency conversion through compacted Kafka topics.],
+    [CoinGecko API], [@adr-0033], [Provides slow-moving coin metadata used to enrich closed OHLC bars through a `GlobalKTable` join.],
+    [Kafka Streams], [@adr-0022, @adr-0027, @adr-0031, @adr-0034], [Runs the continuously active topologies for Market Scout derivation, bid/ask matching, OHLC aggregation, and portfolio valuation.],
+    [Confluent Schema Registry + Avro], [@adr-0032], [Provides schema-managed contracts for cross-service derived events, while raw replay topics stay JSON.],
+    [Jackson JSON], [@adr-0003], [Standardised serialization for raw replay boundaries and original domain events. Readable payloads, but no broker-side schema validation.],
     [`shared-events` module], [@adr-0005], [Shared Maven module defining Kafka event contracts. Ensures compile-time consistency across all producing and consuming services.],
-  ),
+  )],
 ) <tab:tech-stack>

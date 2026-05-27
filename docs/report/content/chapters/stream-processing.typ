@@ -10,7 +10,7 @@ Lecture 07 framed an event stream as an unbounded, ordered, immutable, and repla
 
 CryptoFlow uses that model in three places:
 
-/ Source streams: External systems are converted into Kafka topics. Binance ticker events feed `crypto.price.raw` (@adr-0006), Binance partial book depth events feed `crypto.scout.raw` (@adr-0021), the FX provider feeds `reference.fx.rate` (@adr-0029), and CoinGecko metadata feeds `reference.crypto.metadata` (@adr-0033).
+/ Source topics: External systems are converted into Kafka topics. Binance ticker streams feed `crypto.price.raw` (@adr-0006), Binance partial book depth streams feed `crypto.scout.raw` (@adr-0021), and scheduled HTTP reference-data pollers feed the compacted `reference.fx.rate` and `reference.crypto.metadata` topics (@adr-0029, @adr-0033).
 
 / Processing topologies: Kafka Streams applications transform those topics into derived topics. Market Scout derives ask quotes and opportunities (@adr-0022), Transaction Service matches bids with asks (@adr-0027), Market Data Service builds OHLC bars (@adr-0031), and Portfolio Service computes current portfolio values (@adr-0034).
 
@@ -82,9 +82,11 @@ When the user places an order, the place-order worker validates the user locally
 
 The matcher keeps three persistent stores: pending bids grouped by symbol, transaction ids that already matched, and ask quote ids that have already been allocated. This state is what makes the extension more robust than the earlier in-memory price check. A restart can rebuild the matching state from Kafka inputs, and replay does not approve the same transaction twice or allocate one ask to multiple bids.
 
-The business timing is event-time based. A bid is valid for 30 seconds from its `createdAt` timestamp, with a five-second grace period aligned with the Camunda rejection timer. A `MatchableAsk` is eligible only if its market event time falls into that interval, the ask price is at or below the bid price, and the available quantity is sufficient. If several bids compete for the same ask, deterministic price-time priority chooses the winner: highest bid price first, then earliest bid creation time, then `transactionId`.
+The business timing is event-time based. A bid is matchable for 30 seconds from its `createdAt` timestamp. The additional five seconds are not an eligibility extension; they are a retention and workflow margin aligned with the Camunda rejection timer (`PT35S`) so late processing does not immediately discard still-relevant state. A `MatchableAsk` is eligible only if its market event time falls inside the 30-second bid interval, the ask price is at or below the bid price, and the available quantity is sufficient. If several bids compete for the same ask, deterministic price-time priority chooses the winner: highest bid price first, then earliest bid creation time, then `transactionId`.
 
 When a match is found, the topology emits `transaction.order-matched` keyed by `transactionId`. Camunda correlates that event to the waiting process instance, after which the existing approval path continues unchanged: `approveOrderWorker` writes the approved state and outbox row, `publishOrderApprovedWorker` publishes `transaction.order.approved`, and `portfolio-service` updates holdings asynchronously. This keeps Kafka Streams responsible for market matching and Camunda responsible for the order lifecycle.
+
+For demonstration and debugging, `transaction-service` also consumes the bid, ask, and match streams into a matching-audit projection. The audit tables are not part of the matching decision itself; they are an event-driven read model for the dashboard. They let the demo inspect recent bids, observed ask quotes, emitted matches, event-time metadata, and Kafka topic/partition/offset information without coupling the matcher to the dashboard.
 
 The portfolio valuation topology uses state stores at a higher level of abstraction (@adr-0034). It consumes approved orders and prices, materializes both as tables, computes position values, then groups positions into a user-level aggregate:
 
@@ -129,7 +131,7 @@ same source stream
 
 The grace period keeps a window open long enough to absorb bounded late ticks. `suppress(untilWindowCloses)` prevents downstream consumers from receiving every intermediate candle update. They receive one closed bar per `(symbol, window)` after the window and grace period are complete. This matches the semantics of a closed candlestick used by charts and future indicator computations (@adr-0031).
 
-Transaction matching also uses event-time validity, but as business logic inside a stateful transformer rather than as a DSL windowed join. A bid is valid from `BuyBid.createdAt` until `createdAt + 30s`, with a five-second fallback margin aligned with the Camunda timeout. A matching ask must have `ask.eventTime` inside that interval, a price at or below the bid price, and enough quantity (@adr-0027).
+Transaction matching also uses event-time validity, but as business logic inside a stateful transformer rather than as a DSL windowed join. A bid is eligible from `BuyBid.createdAt` until `createdAt + 30s`. The five-second margin is used for state retention and the BPMN timeout alignment, not for accepting asks after the 30-second business interval. A matching ask must have `ask.eventTime` inside the 30-second interval, a price at or below the bid price, and enough quantity (@adr-0027).
 
 == Joins, Repartitioning, and Interactive Queries
 
@@ -143,6 +145,8 @@ Third, portfolio valuation demonstrates multiphase repartitioning. A per-positio
 
 Interactive queries are used where the materialized result is directly useful to the local service API. `portfolio-service` exposes `GET /portfolios/{userId}/streams-value` from `portfolio-value-store`. `market-order-scout-service` exposes dashboard statistics from `market-scout-dashboard-stats`. The development deployment runs one instance of each service, so multi-instance host discovery and redirect logic are intentionally out of scope.
 
+The matching audit in `transaction-service` is intentionally a regular PostgreSQL read model rather than an interactive query. It consumes the relevant Kafka topics and persists recent matching observations so the dashboard can explain why an order matched without reading directly from the matcher's internal state stores.
+
 #figure(
   caption: [Implemented stream-processing patterns in CryptoFlow],
   table(
@@ -155,6 +159,7 @@ Interactive queries are used where the materialized result is directly useful to
     [Multiphase repartitioning], [Portfolio positions re-keyed from `userId|symbol` to `userId`], [`portfolio-value-store`],
     [Windowing], [Market Scout summaries, OHLC bars, bid validity interval], [`crypto.scout.window-summary`, `crypto.ohlc.*`, `transaction.order-matched`],
     [Interactive queries], [Portfolio value endpoint and Market Scout dashboard], [`GET /portfolios/{userId}/streams-value`, Scout dashboard state],
+    [Event-driven read model], [Transaction matching audit dashboard], [Bid/ask/match audit tables],
     [Reprocessing], [Fresh application id or offset reset rebuilds derived state from input topics], [Rebuilt state stores and derived topics],
   ),
 ) <tab:implemented-stream-patterns>
@@ -167,7 +172,9 @@ The stream extension uses three serialization strategies because the topics have
 
 / Registryless Avro for scout-owned derived topics: `AskQuote`, `AskOpportunity`, and `ScoutWindowSummary` are local to `market-order-scout-service` (@adr-0022). They use Avro schemas but do not need Schema Registry because no independent bounded context depends on them as stable contracts.
 
-/ Schema Registry Avro for cross-service derived contracts: `FxRate`, `CoinMetadata`, `Ohlc`, `PortfolioValue`, and `UserDisplayCurrencyUpdated` are registry-backed because they cross service boundaries or are consumed by independently deployable components. The shared `MatchableAsk` contract follows the same generated-contract discipline and is documented separately in @adr-0026.
+/ Schema Registry Avro for cross-service derived contracts: `FxRate`, `CoinMetadata`, `Ohlc`, `PortfolioValue`, and `UserDisplayCurrencyUpdated` are registry-backed because they cross service boundaries or are consumed by independently deployable components.
+
+`MatchableAsk` is the exception that makes the coupling boundary explicit. It is a shared Avro contract in `shared-events` because Transaction Service depends on it (@adr-0026), but it still uses the registryless generated serde in the shipped implementation. This kept the scout-to-transaction matching path aligned with the earlier Market Scout Avro setup while Schema Registry was introduced for the newer reference-data and valuation contracts.
 
 Reprocessing follows the same rule across topologies: input topics are the source of truth for derived state. A fresh Kafka Streams `application.id`, or an offset reset for the existing app id during development, lets a topology rebuild its local stores and derived outputs from retained input records. This is useful for OHLC bars, portfolio values, and Scout summaries. The practical limit is topic retention: raw scout and market topics are intentionally short-lived in the development broker to protect disk space, while compacted reference topics retain latest state by key.
 
